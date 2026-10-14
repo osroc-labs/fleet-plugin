@@ -175,6 +175,8 @@ Want the social side (your boat in World next to your friends', moving while you
 
 `/fleet-social:login` works like `/fleet:login`: a code, a page to approve it, and the key saved to `~/.fleet/config.json`. Your dashboard then shows World, Friends and Settings.
 
+**Joining World without the toolkit:** open a friend's invite link (or sign in at [fleet.osroc.io](https://fleet.osroc.io/app)), pick "Just hang out", and install `fleet-social` as above. New accounts start with just World and Friends; turn on Inbox, Sessions, Projects, Prototypes, Devices or Loop any time in Settings › Account › Tabs.
+
 **What's sent**, to `POST /api/social/presence`, about once a minute while you work plus right away when a session starts or ends:
 
 | Field | What it is |
@@ -187,7 +189,7 @@ Want the social side (your boat in World next to your friends', moving while you
 
 **Quiet by design.** The hooks never touch the network (a detached sender does), never print and always exit 0. With no key they do nothing. If your Fleet server doesn't know Fleet Social yet, the sender rests for an hour and tries again later.
 
-**Upgrading to the full toolkit:** `/plugin install fleet@osroc`. It uses the same key: same account, same friends, same boat, and your dashboard switches to the full view on its own the first time the full plugin checks in (or switch it yourself in Settings › Account). Fleet Social then goes quiet for every session the full plugin reports, so nothing is counted twice; uninstall it when you like with `/plugin uninstall fleet-social@osroc` and `rm -rf ~/.fleet/social`.
+**Upgrading to the full toolkit:** `/plugin install fleet@osroc`. It uses the same key: same account, same friends, same boat, and the work tabs turn on by themselves the first time the full plugin checks in (unless you've set your tabs yourself in Settings › Account › Tabs). Fleet Social then goes quiet for every session the full plugin reports, so nothing is counted twice; uninstall it when you like with `/plugin uninstall fleet-social@osroc` and `rm -rf ~/.fleet/social`.
 
 ## Uninstall
 
