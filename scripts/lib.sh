@@ -189,11 +189,11 @@ human_text() {
     END { printf "%s", human(s) }'
 }
 
-# The session's latest name from transcript $1, raw JSON-escaped: /rename's custom title, else Claude Code's
-# auto title (ai-title), else a summary line. Cheap: grep and tail.
+# The session's latest name from transcript $1, raw JSON-escaped: /rename's custom-title line (Claude Code's own
+# auto titles are not names). Cheap: grep and tail.
 transcript_title() {
   [ -f "$1" ] || return 0
-  for spec in custom-title:customTitle ai-title:aiTitle summary:summary; do
+  for spec in custom-title:customTitle; do
     typ=${spec%%:*}
     key=${spec#*:}
     line=$(grep -E "\"type\"[ ]*:[ ]*\"$typ\"" "$1" 2>/dev/null | tail -n 1)

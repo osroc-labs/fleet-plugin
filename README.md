@@ -13,12 +13,10 @@ No binary to install: the hooks are small POSIX `sh` scripts that use only `curl
 3. **Run setup** with your key:
 
    ```sh
-   curl -fsSL https://raw.githubusercontent.com/osroc-labs/fleet-plugin/main/setup.sh | sh -s -- fk_your_key
+   curl -fsSL https://fleet.osroc.io/setup.sh | sh -s -- fk_your_key
    ```
 
    It saves the key to `~/.fleet/config.json` (readable only by you), adds `export FLEET_KEY=…` to your shell's rc file, and checks that the fleet answers.
-
-   > While this repo is private, that raw URL won't work. Clone the repo and run `sh setup.sh fk_your_key` instead.
 
 4. **In Claude Code**, add the plugin:
 
@@ -38,14 +36,14 @@ That's it. Your next prompt starts a voyage.
 - **The `berths` skill**, which Claude loads only when it needs to see an app on an Apple device: how to lease a simulator, look, tap and release.
 - **Commands:**
   - `/fleet:find <words>` finds past sessions and prints their `claude --resume` lines.
-  - `/fleet:commission [vessel]` commissions this repo as a ship: carrier, battleship, destroyer, submarine, frigate, galleon, longship, junk, tugboat, canoe, raft or rubber duck.
-  - `/fleet:join` boards the current session by hand. You shouldn't need it: the hooks register every session automatically. It's idempotent, so it's harmless if they already did.
+  - `/fleet:commission [vessel]` commissions this repo as a ship: carrier, battleship, destroyer, submarine, frigate, galleon, longship, junk, tugboat, hydrofoil, catamaran, speedboat, jet ski, canoe, raft or rubber duck.
+  - `/fleet:join` says whether this session is logged and as which voyage. You shouldn't need it: the hooks register every session automatically.
 
 ## Privacy: what leaves your machine
 
 **Fleet never talks to Claude; it only listens.** The hooks print nothing, add nothing to Claude's context and never ask Claude to check in. Everything below is captured from the outside.
 
-- **Sent:** your prompts (redacted, up to 1,000 characters each; only what you typed: subagent hand-backs, task notifications, system reminders and other text Claude Code injects are cut, and a slash command is sent as `/command args`); the session's name (from `/rename`, else Claude Code's auto title); after each turn, the first 280 characters of Claude's final reply as the voyage's check-in (redacted), and the same for each subagent's final message; the artifact lines above; "waiting on you" notices; and once per session the repo's `origin` URL (credentials stripped), branch, commit sha, whether it's pushed, this machine's name and the session's folder.
+- **Sent:** your prompts (redacted, up to 1,000 characters each; only what you typed: subagent hand-backs, task notifications, system reminders and other text Claude Code injects are cut, and a slash command is sent as `/command args`); the session's name (from `/rename`); after each turn, the first 280 characters of Claude's final reply as the voyage's check-in (redacted), and the same for each subagent's final message; the artifact lines above; "waiting on you" notices; and, with each send, the session's details: the repo's `origin` URL (credentials stripped), branch, commit sha, whether it's pushed, this machine's name, the session's folder and its Claude Code config folder (which account).
 - **Never sent:** transcripts, the rest of Claude's replies, tool output, file contents. The only exceptions are a commit's one-line subject and the PR, issue and artifact links found in a command's output.
 - **Backfill:** when a session that was already running registers, the sender reads only your typed prompts from its local transcript (the last 50), redacts them and logs them. It's best effort: it skips tool results and anything that isn't a typed prompt, with the same filter as live prompts.
 - **Redaction happens on your machine, before anything is sent.** It covers `sk-…` keys, Stripe keys, Fleet `fk_`/`fr_`/`fj_` keys, GitHub `ghp_`/`gho_`/`github_pat_` tokens, Slack `xox…` tokens, AWS access and secret keys, Google `AIza…` keys, JWTs, `Bearer …` values, `user:pass@` in URLs, `password=` values, PEM private keys, and `KEY=value` lines with secret-ish names (`*_KEY`, `*TOKEN*`, `*SECRET*`, `*PASSWORD*` and friends). It's pattern-based, so don't paste secrets anyway.

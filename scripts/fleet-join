@@ -1,7 +1,7 @@
 #!/bin/sh
 # Helper for /fleet:join (you shouldn't need it: the hooks register every session on their own).
 #   fleet-join status [session_id]          what this session's voyage is, or the git facts to open one
-#   fleet-join link <session_id> <voyage_id> links a voyage opened by hand, so the hooks keep logging to it
+#   fleet-join link                          (retired: sessions register automatically)
 . "$(dirname "$0")/lib.sh" 2>/dev/null || exit 0
 cmd=${1:-status}
 sid=${2:-}
@@ -44,21 +44,8 @@ status)
   fi
   ;;
 link)
-  v=${3:-}
-  case "$v" in v_*) ;; *) echo "usage: fleet-join link <session_id> <voyage_id>"; exit 0 ;; esac
-  case "$v" in *[!A-Za-z0-9_-]*) echo "bad voyage id"; exit 0 ;; esac
-  cur=$(sed -n 1p "$WF/sessions/$sid" 2>/dev/null)
-  if [ -n "$cur" ] && [ "$cur" != "$v" ]; then
-    echo "This session already logs to $cur; kept it."
-    exit 0
-  fi
-  printf '%s\n' "$v" >"$WF/sessions/$sid"
-  printf '%s\t%s\t%s\n' "$v" "$(pwd)" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >>"$WF/sessions/$sid.voyages"
-  printf '%s\n' "$v" >"$WF/sessions/$sid.last"
-  : >"$ST.opened"
-  : >"$ST.told"
-  : >"$ST.backfilled"
-  echo "Linked: session $sid now logs to voyage $v."
+  # Sessions register on their own through the session ingest API; a hand-opened voyage isn't linked any more.
+  echo "Sessions register automatically now: nothing to link."
   ;;
 *) echo "usage: fleet-join status|link" ;;
 esac
