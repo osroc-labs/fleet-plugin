@@ -1,7 +1,7 @@
 {
   "name": "fleet",
   "displayName": "Fleet",
-  "version": "0.8.8",
+  "version": "0.8.9",
   "description": "A tools-included toolkit for building with Claude Code: a perpetual build loop (/fleet:loop, with ios, web, api, cli and prototype-only modes, and parallel lanes you add or remove from Fleet) that conducts chained workflows (idea, prototype, build, verify, review, ship, triage) backed by your Fleet's prototypes, inbox and simulators, plus a quiet log of every session. No binary: POSIX sh hooks.",
   "author": { "name": "osroc-labs", "url": "https://fleet.osroc.io" },
   "homepage": "https://fleet.osroc.io",

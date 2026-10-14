@@ -32,6 +32,8 @@ You never have to open the dashboard to use it, but it's where you pick, review 
 
 Optional: to let Claude use simulators on a Mac, add it at https://fleet.osroc.io/app/add.
 
+**Just here for World?** Open a friend's invite link, pick "Just hang out", and install `fleet-social@osroc` instead (`/fleet-social:login`): your boat sails with your friends', no toolkit. New accounts start with World and Friends only; turn other tabs on any time in Settings › Account › Tabs.
+
 ## Everyday workflows (examples)
 
 **"I just want to build something."**
