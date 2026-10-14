@@ -69,7 +69,7 @@ Claude works through your backlog one task at a time: builds, checks, puts each 
 ```
 /fleet:ship
 ```
-Merges and deploys, only after your yes, then checks production.
+Merges and deploys, only after your yes, then checks production. Apps and servers go out together, in order, with a check that the app points at production and a changelog entry for anything people can see.
 
 ## Handy commands
 
@@ -79,8 +79,8 @@ Merges and deploys, only after your yes, then checks production.
 | `/fleet:help` | This guide (`/fleet:help <question>` to ask about one thing) |
 | `/fleet:status` | Your Macs, what's waiting on you, live sessions |
 | `/fleet:find <words>` | Find a past session by what was said in it, and how to resume it |
-| `/fleet:verify` | Check that something actually works |
-| `/fleet:review` | A fresh-eyes review of a branch or pull request, with fixes |
+| `/fleet:verify` | Check that something actually works (after a release, it also signs in to production and looks around, read-only) |
+| `/fleet:review` | A fresh-eyes review of a branch or pull request, with fixes (`round` checks just the latest fixes against what you asked for) |
 | `/fleet:login` | Sign this computer in |
 
 ## Good to know

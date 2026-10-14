@@ -1,13 +1,13 @@
 ---
 name: review
 description: An independent review of a branch or PR before it merges, with fresh eyes, for correctness, security and privacy, regressions, performance and data cost, rollout safety, tests and leftover debris, then fix the findings on the same branch. Use when the user runs /fleet:review, asks for a review of a branch or PR, or as the step after fleet:verify (fleet:loop runs it before the user's review). If the repo has its own review skill, use that instead.
-argument-hint: "<PR number or branch> [base branch]"
+argument-hint: "<PR number or branch> [base branch] | <branch> round <since-sha>"
 allowed-tools: Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-repo"), Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-repo" *)
 ---
 
 # /fleet:review: fresh eyes before it merges
 
-Target: **$ARGUMENTS** (default: the current branch against the main branch).
+Target: **$ARGUMENTS** (default: the current branch against the main branch). With `round <since-sha>` it's a **round review** (§ Round mode): only what's new since the user last saw it, checked against what they asked for.
 
 Read the shared rules once per session: `${CLAUDE_PLUGIN_ROOT}/skills/fleet-workflows/SKILL.md`.
 
@@ -48,6 +48,12 @@ Read the repo's instructions (CLAUDE.md, CONTRIBUTING.md, docs on conventions) f
 **Tests and conventions**
 - Tests cover the change and would fail without it. The repo's style, naming and patterns; one component or helper per job (no second copy of something that exists).
 
+**Fix every use**
+- A fix to a shared pattern (a component, a hook, a helper, a style) goes in the shared piece, not in one screen's copy, and is checked at every place that uses it. The PR has a table: each use (`file:line` or screen), checked how, result. A fix made in one caller while the shared piece stays wrong is a must-fix.
+
+**Recent decisions stand**
+- Before the change alters how something looks or behaves, read `git log --since=2.days -p -- <files it touches>` and the user's recorded words on the issue and PR (verdict notes, Fix notes, the repo's design doc). A recent call the user made, undone along the way without being asked, is a must-fix.
+
 **Debris**
 - Conflict leftovers, dead code, debug output, commented-out blocks, unrelated reformatting, files the change didn't need.
 
@@ -57,8 +63,35 @@ Read the repo's instructions (CLAUDE.md, CONTRIBUTING.md, docs on conventions) f
 2. Fix must-fix and should-fix on the same branch, rerun the gates, push (`git push origin <branch>:<branch>`).
 3. Post a short summary on the PR (`gh pr comment`): what was checked, what was fixed, what's left. Risky areas (auth, money, concurrency, migrations) get looked at again after the fixes, until clean.
 
+## Round mode: `<branch> round <since-sha>`
+
+A short review before each fix round goes back to the user, so they never review the same miss twice. It runs **in parallel with the quick check** and takes about 10 minutes. Skip it only for a copy-only change of a line or two. The full review (§ 1–3) still runs before merge.
+
+**Who reviews:** a fresh subagent (`Agent`, the strongest model you have), never the author. Hand it the branch, `since-sha`, the requests (below) and this section; it reports and doesn't edit. The author fixes.
+
+1. **The diff:** `git diff <since-sha>..HEAD` (`--stat` first). `since-sha` is the sha the user last saw (the task's last published sha: on its Fleet voyage's review, or the preview's message). Nothing older is in scope unless the new diff touches it.
+2. **The requests:** every note the user gave since `since-sha`: the Fix notes on the voyage, the issue and the PR comments, and the user's messages this round (the caller passes them verbatim; without a caller, read them from the issue and PR). Split them into single requests, in the user's words.
+3. **The requests check:**
+   - **Every request is addressed:** where it landed (`file:line`), or why not.
+   - **What the user approved stays:** nothing they approved or didn't mention in an earlier round changed, unless a request asked for it. Diff the files the requests didn't name line by line.
+   - **What they dropped stays gone:** nothing they asked to remove is back (search the diff for the removed label, component or option).
+   - **Nothing invented:** a new label, name, icon, color or pattern matches one already defined in the code; cite the defining file. A word or icon with no source in the repo is a finding.
+   - **Recent decisions stand** and **fix every use** (§ 2) for what this round changed.
+4. **Output,** a table and findings:
+
+   ```
+   Round review <branch> · <since-sha>..<sha>
+   | # | Request (the user's words) | Where it landed | ✓/✗ |
+   | 1 | "make the header smaller" | src/Header.tsx:42 | ✓ |
+   | 2 | "drop the badge" | src/Card.tsx:88 still renders it | ✗ |
+   Kept: ✓ nothing approved changed · Gone stays gone: ✓ · Invented: ✗ "Watchlist" (src/Tabs.tsx:12) has no source; the app says "Library" (src/strings.ts:7)
+   Findings: must-fix / should-fix / nit, each with file:line and the fix
+   ```
+
+5. The author fixes every ✗ and must-fix on the branch before the round is republished, and reruns the quick check if behavior changed. No PR comment for a round review: the table goes back to the caller (`fleet:loop`), or to the user in chat.
+
 ## Report
 
-Findings fixed (one line each), anything left and why, the PR link.
+Findings fixed (one line each), anything left and why, the PR link. A round review reports its table instead (§ Round mode 4).
 
-**Next:** from `fleet:loop`: back to the loop. Otherwise clean → `fleet:ship` (it asks for the user's yes before production). Fixes that changed behavior → `fleet:verify` first.
+**Next:** from `fleet:loop`: back to the loop (a round review: back to the round's republish). Otherwise clean → `fleet:ship` (it asks for the user's yes before production). Fixes that changed behavior → `fleet:verify` first.

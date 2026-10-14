@@ -68,9 +68,9 @@ The mode is detected from the repo when you leave it out, and saved once confirm
 | `/fleet:idea` | A brain dump becomes researched, scoped GitHub issues (existing ones merged, not duplicated) | prototype or build |
 | `/fleet:prototype` | 2–4 genuinely different options as HTML pages or real simulator screenshots, published to Prototypes; waits for your pick (Build, Another round, Tuck away) | build the pick |
 | `/fleet:build` | Builds a feature on its own branch with tests and a draft PR; hands iPhone work to the loop's ios mode | verify |
-| `/fleet:verify` | The repo's tests and gates plus a real look (a page or a simulator, with screenshots); pass or fail, never claimed unchecked | review |
-| `/fleet:review` | An independent review (correctness, security, regressions, data cost, rollout), fixed on the branch | ship |
-| `/fleet:ship` | Merges and deploys with the repo's own deploy command, **only with your yes**, then verifies production | done |
+| `/fleet:verify` | The repo's tests and gates plus a real look (a page or a simulator, with screenshots); on production, a signed-in read-only smoke check; known flakes tracked, not rerun blindly; pass or fail, never claimed unchecked | review |
+| `/fleet:review` | An independent review (correctness, security, regressions, data cost, rollout), fixed on the branch; `round <sha>` checks just a fix round against what you asked for | ship |
+| `/fleet:ship` | Merges and deploys with the repo's own deploy command or ordered release targets, **only with your yes**, guarded (right environment, native-build boundary, changelog entry), then verifies production | done |
 | `/fleet:triage` | "It's broken": logs and errors first, the root cause with evidence, a fix with a regression test | verify |
 | `/fleet:sim` | A quick look at an app or page on an iPhone, iPad or Apple TV simulator; released when done | |
 | `/fleet:status` | Your Macs and simulators, what's waiting on you, live sessions | |
@@ -90,6 +90,13 @@ Each workflow ends by naming the next step, and goes straight on when you've sai
 | `issues.labels`, `issues.parent`, `issues.milestone`, `roadmap` | Where tasks come from: labeled issues (only an epic's sub-issues with `parent`), then the roadmap. |
 | `skills` | Your skill for each step: `round` (one task's build, check and preview), `verify`, `review`, `ship`, `prototype`, `idea`, `triage`, e.g. `{ "round": "/ios-loop", "ship": "/deploy" }`. It's called with `from fleet:loop`, does one task, and returns. |
 | `rules` | Your rules for the loop, one sentence each; it prints them at the start and follows them. |
+| `verify.smoke` | A signed-in, read-only check after a deploy: `{ "production": { "signIn", "checks", "envVars" }, "preview": … }`. `envVars` names the variables holding the smoke account's credentials; the values never leave them, and the account never writes. |
+| `verify.absentInProduction` | Strings only a preview build shows (a badge, the staging host), checked absent from production. |
+| `verify.quarantine` | Known flaky tests: `{ "tag": "@quarantine", "issueLabel": "flaky" }`. A quarantined failure is reported with its issue and doesn't fail the check; a new flake is rerun alone once, then tagged with an issue. |
+| `ship.targets` | What a release deploys, in order, from one clean checkout: `[{ "name", "command", "check", "overTheAir" }]`, e.g. the server, then the over-the-air app update. A failed check stops the rest. `commands.deploy` is the one-target shorthand. |
+| `ship.environmentCheck` | A command proving the built app calls production (or, given `preview`, not production). A failure stops the ship and runs `commands.restoreProduction` when set. |
+| `ship.nativeCheck` | A command that fails when a change can't reach installed apps over the air; that change waits for a store build (`commands.storeBuild`) and your yes. |
+| `ship.changelog` | `{ "path", "required": "user-visible", "clip" }`: a plain-words entry for anything people can see, plus a short clip for a new screen or flow when `clip` is set. |
 | `replies` | `false` keeps Claude's replies out of the session log for this repo (prompts and the one-line check-in still go). See [Privacy](#privacy-what-leaves-your-machine). |
 | `agents.models` | Model and effort per job for every agent, e.g. `{ "ui": ["opus", "high"], "small": ["sonnet", "medium"] }`. |
 | `agents.enforceBriefs`, `agents.unpushedWork` | Opt-in hooks (off by default): refuse an agent brief with no model, effort, check-ins or stop; flag worktree commits sitting unpushed for over 10 minutes. |
