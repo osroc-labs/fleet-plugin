@@ -7,7 +7,7 @@ HERE=$(dirname "$0")
 . "$HERE/lib.sh" 2>/dev/null || exit 0
 
 LOCK="$WF/send.lock"
-UA="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36 fleet-plugin/0.1"
+UA="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36 fleet-plugin/0.2"
 mkdir -p "$WF/queue" "$WF/work" "$WF/state" "$WF/sessions" "$WF/tmp" 2>/dev/null || exit 0
 
 lock() {
@@ -40,6 +40,36 @@ post() {
 
 # Unescape a JSON string body (as we wrote it) back to text, for a path.
 unjson() { printf '%s' "$1" | sed -e 's/\\"/"/g' -e 's/\\\\/\\/g'; }
+
+# A voyage that opened without its repo (not a git repo yet, no origin yet, or the server refused the remote) joins
+# its ship once origin answers: $1 session, $2 voyage. Tried on each turn until it lands or the server says no.
+attach_repo() {
+  ad=$(sed -n 1p "$WF/state/$1.norepo" 2>/dev/null)
+  [ -n "$ad" ] && [ -d "$ad" ] || { rm -f "$WF/state/$1.norepo"; return 0; }
+  ar=$(git -C "$ad" remote get-url origin 2>/dev/null | sed -E 's#://[^/@]*@#://#')
+  [ -n "$ar" ] || return 0
+  AB="$WF/tmp/repo.$$"
+  printf '{"repo":"%s","opId":"%s-repo-%s"}' "$(printf '%s' "$ar" | json_text 300)" "$1" "$2" >"$AB"
+  post "/api/voyages/$2/git" "$AB"
+  rm -f "$AB"
+  case "$CODE" in
+  2*) rm -f "$WF/state/$1.norepo" ;;
+  4*) flog "repo $1: $CODE $(head -c 200 "$RESP" 2>/dev/null); not retried"; rm -f "$WF/state/$1.norepo" ;;
+  esac
+}
+
+# The session's name (/rename, else Claude Code's auto title) from transcript $3, sent to voyage $2 when it changed.
+send_title() {
+  [ -n "$3" ] || return 0
+  nt=$(transcript_title "$3" | json_unescape | redact | tr '\n' ' ' | json_text 120)
+  [ -n "$nt" ] || return 0
+  [ "$nt" = "$(cat "$WF/state/$1.title" 2>/dev/null)" ] && return 0
+  TB="$WF/tmp/title.$$"
+  printf '{"kind":"title","text":"%s","opId":"%s-title-%s"}' "$nt" "$1" "$(date +%s)" >"$TB"
+  post "/api/voyages/$2/log" "$TB"
+  rm -f "$TB"
+  case "$CODE" in 2* | 400) printf '%s' "$nt" >"$WF/state/$1.title" ;; esac
+}
 
 # Open a voyage for session $1 from an open line ($2), opId $3. A session already running when the
 # plugin was installed gets its earlier prompts backfilled from the transcript, once.
@@ -90,11 +120,14 @@ open_voyage() {
   B="$WF/tmp/body.$$"
   printf '{"goal":"%s"%s%s,"opId":"%s"}' "$goal" "$repoj" "$gitj" "$op" >"$B"
   post /api/voyages "$B"
+  norepo=""
+  [ -z "$remote" ] && [ -n "$sha" ] && norepo=1
   if [ "$CODE" = 400 ]; then
-    # A remote or branch the server won't take: open it plain rather than not at all.
+    # A remote or branch the server won't take: open it plain rather than not at all (attach_repo tries again later).
     flog "open $sid: 400 $(head -c 300 "$RESP"); retrying without repo and git"
     printf '{"goal":"%s","opId":"%s-plain"}' "$goal" "$op" >"$B"
     post /api/voyages "$B"
+    norepo=1
   fi
   case "$CODE" in 2*) ;; *) rm -f "$B" "$BF"; return 1 ;; esac
   vid=$(awk 'match($0, /"id":"v_[A-Za-z0-9_-]+"/) { print substr($0, RSTART + 6, RLENGTH - 7); exit }' "$RESP")
@@ -103,6 +136,7 @@ open_voyage() {
   printf '%s\n' "$vid" >"$WF/sessions/$sid"
   printf '%s\t%s\t%s\n' "$vid" "$dir" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >>"$WF/sessions/$sid.voyages"
   printf '%s\n' "$vid" >"$WF/sessions/$sid.last"
+  if [ -n "$norepo" ]; then printf '%s\n' "$dir" >"$WF/state/$sid.norepo"; else rm -f "$WF/state/$sid.norepo"; fi
   # The first entry: how to get back to this session.
   note="Session $sid on $HOST. Resume: cd $(printf '%s' "$dir" | json_text 300) && claude --resume $sid"
   [ -n "$prev" ] && note="$note (continues voyage $prev)"
@@ -118,6 +152,8 @@ open_voyage() {
   done <"$BF"
   : >"$WF/state/$sid.backfilled"
   rm -f "$B" "$BF"
+  rm -f "$WF/state/$sid.title"
+  send_title "$sid" "$vid" "$tp"
   CODE=201
   return 0
 }
@@ -156,9 +192,11 @@ send_line() {
     [ -n "$vid" ] || return 0
     crew=$(printf '%s' "$line" | sed -n 's/^{"t":"turn","crew":"\([^"]*\)",.*$/\1/p')
     raw=$(printf '%s' "$line" | sed -n 's/^{"t":"turn","crew":"[^"]*","tp":".*","raw":"\(.*\)"}$/\1/p')
-    if [ -z "$raw" ] && [ -z "$crew" ]; then
+    if [ -z "$crew" ]; then
       tp=$(unjson "$(printf '%s' "$line" | sed -n 's/^{"t":"turn","crew":"[^"]*","tp":"\(.*\)","raw":".*"}$/\1/p')")
-      raw=$(transcript_last_assistant "$tp")
+      [ -f "$WF/state/$sid.norepo" ] && attach_repo "$sid" "$vid"
+      send_title "$sid" "$vid" "$tp"
+      [ -z "$raw" ] && raw=$(transcript_last_assistant "$tp")
     fi
     text=$(printf '%s' "$raw" | json_unescape | redact | tr '\n' ' ' | json_text 280)
     [ -n "$text" ] || return 0
