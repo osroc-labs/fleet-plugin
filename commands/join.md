@@ -1,5 +1,5 @@
 ---
-description: Check whether this session is logged as a Fleet voyage. You shouldn't need it; the hooks register every session automatically.
+description: Check this session is logged as a Fleet voyage (the hooks do it automatically).
 allowed-tools: Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-join" *)
 ---
 

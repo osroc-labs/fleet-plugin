@@ -1,6 +1,6 @@
 ---
 name: build
-description: Build a feature or change end to end on its own branch, following the repo's conventions, with tests and a draft PR, then hand off to verification. Hands iPhone work in iOS/Expo/React Native repos to fleet:loop ios and open visual choices to fleet:prototype. Use when the user runs /fleet:build, picks a prototype option, fleet:loop calls it, or asks Fleet to build something. If the repo has its own build workflow, use that instead.
+description: Build a feature or change end to end on its own branch with tests and a draft PR, then hand off to verify. Use for /fleet:build, a picked prototype option, or "build this". A repo's own build workflow wins.
 argument-hint: "<what to build, or an issue number>"
 allowed-tools: Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-repo"), Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-repo" *)
 ---
@@ -45,7 +45,7 @@ On a prototype voyage: `voyage_stage` with `stage: "building"` and a one-line no
 
 - Commit with clear messages. Check `git rev-parse --abbrev-ref @{u}` isn't the main branch, then `git push -u origin <branch>:<branch>`.
 - Open a **draft PR** (`gh pr create --draft`): what changed in plain words, how it was tested, "Decisions I made", and `Fixes #<n>` / `Refs #<n>`.
-- On a voyage: `voyage_git` with branch, PR, sha and `pushed: true`.
+- On a voyage: `voyage_log` kind `state` with `git` (branch, pr, sha, `pushed: true`).
 
 ## Report
 

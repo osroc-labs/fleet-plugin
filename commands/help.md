@@ -1,5 +1,5 @@
 ---
-description: How to use Fleet, in plain words, with examples of the everyday workflows. Start here.
+description: How to use Fleet, with examples of the everyday workflows.
 allowed-tools: Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-login" check)
 ---
 

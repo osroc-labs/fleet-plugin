@@ -1,6 +1,6 @@
 ---
 name: prototype
-description: Show 2–4 genuinely different options for something decided by looking (a screen, a flow, an interaction, a visual direction, state logic) on one side-by-side comparison page (or real simulator screenshots), publish it to the user's Fleet Prototypes, and wait for their pick before building anything. About ten minutes to the first link, in the main session. Use when the user asks for options, a prototype, mockups or "a few directions", or runs /fleet:prototype. Small or clearly specified changes don't need it. If the repo has its own prototype skill, use that instead.
+description: Show 2–4 genuinely different options (screen, flow, interaction, visual direction, state logic) on one side-by-side page in Fleet Prototypes and wait for the pick before building. Use for options, mockups, "a few directions" or /fleet:prototype. A repo's own prototype skill wins.
 argument-hint: "<what to explore> | resume <voyage id>"
 allowed-tools: Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-repo"), Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-repo" *), Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-login" check)
 ---

@@ -1,6 +1,6 @@
 ---
 name: idea
-description: Turn an idea or brain dump into researched, scoped GitHub issues, after checking existing issues and merging overlaps instead of duplicating them. Each issue gets context, findings from the code, options, a recommendation, open questions and PR-sized tasks. Use when the user shares product ideas, feature wishes or "what if we…" thoughts and wants them captured, or runs /fleet:idea. If the repo has its own roadmap or idea skill, use that instead.
+description: Turn an idea or brain dump into researched, scoped GitHub issues, merging overlaps with existing ones. Use for /fleet:idea or "what if we…" ideas to capture. A repo's own idea skill wins.
 argument-hint: "<the idea or brain dump>"
 allowed-tools: Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-repo"), Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-repo" *), Bash(gh issue list *), Bash(gh issue view *), Bash(gh label list *)
 ---
@@ -49,7 +49,6 @@ Use labels the repo already has (`gh label list`); the settings' `issues.labels`
 
 Without `gh` or a GitHub remote: give the issues as Markdown in the chat, ready to paste, and say where they'd go.
 
-If the user's Fleet has GitHub connected, labeling an issue `⚓ set sail` hands it to an agent later as an order (`orders`). Mention it once, only if they ask how to queue work.
 
 ## Report
 

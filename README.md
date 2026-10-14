@@ -11,7 +11,7 @@ No binary to install: the hooks and helpers are small POSIX `sh` scripts that us
 ```
 /fleet:loop [mode] [lanes]          until you say stop, or the queue is empty
 
- ┌─▶ 1. pick the next task   your Fleet Inbox and orders → GitHub issues → the roadmap
+ ┌─▶ 1. pick the next task   your Fleet Inbox → GitHub issues → the roadmap
  │        │ open-ended?
  │        ├─────▶ 2. /fleet:prototype ┄┄ waits for your pick (the loop works on other tasks)
  │        ▼                  │ Build <option>
@@ -76,7 +76,6 @@ The mode is detected from the repo when you leave it out, and saved once confirm
 | `/fleet:status` | Your Macs and simulators, what's waiting on you, live sessions | |
 | `/fleet:find <words>` | Searches every past session and prints the `claude --resume` line | |
 | `/fleet:login` | Links this computer to your Fleet | |
-| `/fleet:commission [vessel]` | Gives this repo a boat on your Fleet's sea | |
 
 Each workflow ends by naming the next step, and goes straight on when you've said to keep going ("build it and take it to review"). The rules they all share: verify before claiming anything works, never push to the main branch (branches and PRs only), production needs your explicit yes, every simulator lease is released and everything started is stopped (by PID or port, never a pattern kill), every branch works in its own git worktree so your checkout is never touched, Claude pushes back before making the common case worse to fix a rare one and never drops conflicting work, and a lasting preference you state is written into the repo (with the date and your words), not left in Claude's memory. Every agent gets a model and effort picked for its job, and every report ends the same way: **Callouts**, **Waiting on you**, **PR links** and **Options waiting on you**, each action with its link. The shared rules live in [`skills/fleet-workflows/SKILL.md`](skills/fleet-workflows/SKILL.md).
 

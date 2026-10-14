@@ -1,6 +1,6 @@
 ---
 name: fleet
-description: Fleet's front door. Leads with /fleet:loop (perpetual building on a project), shows the other Fleet workflows (idea, prototype, build, verify, review, ship, triage) with one line each, what's waiting on the user in Fleet, and suggests the right workflow for what they describe. Use when the user types /fleet or asks what Fleet can do or which Fleet workflow fits.
+description: Fleet's front door, listing the workflows (loop, idea, prototype, build, verify, review, ship, triage), what's waiting on you, and which fits. Use for /fleet or "what can Fleet do".
 argument-hint: "[what you want to do]"
 allowed-tools: Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-api" *), Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-repo" *), Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-login" check)
 ---
@@ -17,7 +17,7 @@ This repo: !`sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-repo" --short`
 
 ## The loop
 
-**`/fleet:loop`** keeps building on this project until you say stop: it picks the next task (your Fleet Inbox and orders, then GitHub issues, then the roadmap), shows options first when it's open-ended, builds, checks and reviews it, puts it up for your review in Fleet, and ships it on your green (production still needs your yes unless you've turned on `greenShips`). Then the next one.
+**`/fleet:loop`** keeps building on this project until you say stop: it picks the next task (your Fleet Inbox, then GitHub issues, then the roadmap), shows options first when it's open-ended, builds, checks and reviews it, puts it up for your review in Fleet, and ships it on your green (production still needs your yes unless you've turned on `greenShips`). Then the next one.
 
 - Modes: `ios` (simulators), `web` (preview URL or dev server), `api`, `cli`, `prototype-only` (options, no building); picked from the repo when you don't say.
 - `/fleet:loop 2` runs two tasks at once, each on its own simulator. `/fleet:ios-loop` is `/fleet:loop ios`.

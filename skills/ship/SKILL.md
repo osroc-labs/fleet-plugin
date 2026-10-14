@@ -1,6 +1,6 @@
 ---
 name: ship
-description: Merge a reviewed PR and deploy it to production with the repo's own documented deploy command (or its ordered release targets, with environment, native-build and changelog guards), only after the user's explicit yes, then verify production and close the issues. The deploy command is asked once and saved in .fleet/workflow.json. Use when the user runs /fleet:ship or says to ship, merge and deploy, or release a specific change. If the repo has its own deploy skill, use that instead.
+description: Merge a reviewed PR and deploy to production with the repo's documented deploy command, only after the user's explicit yes, then verify and close issues. Use for /fleet:ship or "ship it". A repo's own deploy skill wins.
 argument-hint: "<PR number or branch>"
 allowed-tools: Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-repo"), Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-repo" *)
 ---

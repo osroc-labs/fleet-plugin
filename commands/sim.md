@@ -1,5 +1,5 @@
 ---
-description: Quick look at an app or web page on an iPhone, iPad or Apple TV simulator from your Fleet; screenshot it, then release it.
+description: Quick look at an app or page on a Fleet iPhone, iPad or Apple TV simulator, screenshot it, then release it.
 argument-hint: "[iphone|ipad|appletv] [url | bundle id | path/to/App.app]"
 disable-model-invocation: true
 allowed-tools: Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-login" check), Bash(git remote get-url origin)
