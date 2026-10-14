@@ -22,12 +22,14 @@ Read the shared rules once per session: `${CLAUDE_PLUGIN_ROOT}/skills/fleet-work
 
 ## 2. Branch
 
+A worktree, never the user's checkout (shared rules § 9):
+
 ```sh
 git fetch origin
-git switch --no-track -c <type>/<short-name> origin/<main>
+git worktree add --no-track -b <type>/<short-name> ../<repo>-<short-name> origin/<main>
 ```
 
-If the working tree has uncommitted changes, or the user works in this checkout, use a worktree instead: `git worktree add --no-track -b <branch> ../<repo>-<short-name> origin/<main>`, and install dependencies there with the repo's install command.
+Install dependencies there with the repo's install command and work only in that folder. Never switch, stash or reset the checkout you started in. Only with `worktreesOnly: false` in the settings, and a clean tree, may you branch in place (`git switch --no-track -c <branch> origin/<main>`).
 
 On a prototype voyage: `voyage_stage` with `stage: "building"` and a one-line note, so the user sees it moving.
 
@@ -47,6 +49,6 @@ On a prototype voyage: `voyage_stage` with `stage: "building"` and a one-line no
 
 ## Report
 
-Two or three lines: what was built, the branch and PR link, what the gates said.
+Opening lines: what was built (and what wasn't), the branch and PR link, what the gates said. Then the closing sections (shared rules § Reporting).
 
 **Next:** `fleet:verify` on this branch (call it directly when the user asked to keep going). From `fleet:loop`: back to the loop. On a prototype voyage, `fleet:verify` then `voyage_stage` review with screenshots, and wait for the user's green.

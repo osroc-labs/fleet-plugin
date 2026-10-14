@@ -31,13 +31,13 @@ Name the root cause with evidence: the error, the `file:line`, the input that tr
 
 ## 3. Fix
 
-- A branch off the main branch (shared rules § 2), or a worktree if the tree is dirty.
+- A branch off the main branch in its own worktree (shared rules § 2 and § 9), never the user's checkout.
 - The fix, plus a test that fails without it.
 - If the failure path wasn't reported or logged, add reporting.
 - The gates from the settings; push; open a PR with the cause and evidence in its body (`Fixes #<n>` when there's an issue).
 
 ## Report
 
-What broke, the cause (one line plus evidence), the fix (PR link), and the test that guards it.
+Opening lines: what broke, the cause (one line plus evidence), the fix (PR link), and the test that guards it. Then the closing sections (shared rules § Reporting).
 
 **Next:** `fleet:verify` on the branch (call it directly), then `fleet:review` and `fleet:ship` (production still needs the user's yes).
