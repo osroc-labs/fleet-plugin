@@ -2,6 +2,9 @@
 
 One line per release of the `fleet` plugin, newest first, with the osroc-labs/fleet issues it closes. Update with `claude plugin marketplace update osroc && claude plugin update fleet@osroc`, then start a new session. Server-side changes (new MCP tools, dashboard) go live on fleet.osroc.io without a plugin update; a new session picks up new tools.
 
+## 0.8.13
+- Fix: session logging dropped batches whenever a subagent finished (and on PR, issue and artifact links). macOS's /bin/sh split a `{…}` literal into two arguments, so the event was invalid JSON and the server refused the whole batch. Every event is now checked, and a bad one is skipped and logged instead of losing the batch.
+
 ## 0.8.12
 - `voyage_stage` is for prototypes only; a plain session is refused instead of becoming a prototype (#22). `prototype_import` can `replace` an older import (by slug or `replace_id`), and the new `prototype_archive` tool archives or restores one (#20).
 
