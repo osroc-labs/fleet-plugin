@@ -29,6 +29,10 @@ case "$SID" in "" | *[!A-Za-z0-9_-]*) flog "$EVENT: bad session_id"; exit 0 ;; e
 Q="$WF/queue/$SID.jsonl"
 ST="$WF/state/$SID"
 
+# Mark this session as reported by the full plugin, so Fleet Social (fleet-social@osroc), if it's installed too, stays
+# quiet instead of reporting it twice. Tidied with the rest of the session's state after 30 days.
+[ -f "$ST.full" ] || : >"$ST.full" 2>/dev/null
+
 enqueue() { printf '%s\n' "$1" >>"$Q" 2>/dev/null || flog "$EVENT: can't write $Q"; }
 
 # kind, byte limit, prefix; text on stdin. Queues one log line.
