@@ -87,6 +87,10 @@ Each workflow ends by naming the next step, and goes straight on when you've sai
 | `loop.mode`, `loop.lanes`, `loop.maxLanes` | The mode, lanes to start with, and the most lanes allowed (default 3). |
 | `loop.agentLimit` | Agents by the hour, e.g. `{ "beforeHour": 17, "tz": "America/Denver", "before": 2, "after": 5 }`: 2 before 5 PM Mountain, 5 after. |
 | `loop.maxWaiting`, `loop.localSimulators` | Tasks waiting on your review before it stops starting more (3); simulators booted on this Mac (3). |
+| `loop.firstSliceMinutes`, `loop.checkInMinutes` | A lane's first working slice reaches your review within 15 minutes; then it pushes and checks in every 10. |
+| `preview` | What your preview build shows: `labelEnv` and `stepsEnv` name the build-time variables for the label (`Staging · branch · sha`) and the test steps still waiting on you; `ship.environmentCheck preview` proves it points at the review environment before you're told; `environment.protected` (on by default) means the review environment is never reset. Your app reads the two variables and shows them (a badge and a small "Testing now" panel). |
+| `verdicts`, `feedback` | Commands that print green/red verdicts and tester feedback sent from your app, and mark them handled. Only `verdicts.owner` can ship or fix a task, and only for the build under review; testers' additions become `proposal` issues for your yes. |
+| `board` | `{ "issue": 12, "marker": "fleet-board" }`: one status comment on that issue, edited in place on every move (on your device, building, shipping, next, shipped), that any session resumes from, with or without a Fleet key. |
 | `issues.labels`, `issues.parent`, `issues.milestone`, `roadmap` | Where tasks come from: labeled issues (only an epic's sub-issues with `parent`), then the roadmap. |
 | `skills` | Your skill for each step: `round` (one task's build, check and preview), `verify`, `review`, `ship`, `prototype`, `idea`, `triage`, e.g. `{ "round": "/ios-loop", "ship": "/deploy" }`. It's called with `from fleet:loop`, does one task, and returns. |
 | `rules` | Your rules for the loop, one sentence each; it prints them at the start and follows them. |

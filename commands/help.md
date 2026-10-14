@@ -65,6 +65,11 @@ Claude turns them into clear, researched GitHub issues ready to build.
 ```
 Claude works through your backlog one task at a time: builds, checks, puts each one in your Inbox for review, and ships it when you say so. `/fleet:loop 2` runs two at once. Type **stop** to end it.
 
+- **Small slices, fast.** The first working piece of a task reaches you in about 15 minutes, and each lane checks in every 10 (the Loop tab flags a quiet lane or work that isn't pushed).
+- **On your phone or preview,** each build can show what it is (`Staging · branch · sha`) and the test steps for what's waiting on you, if your app reads them (`preview` in `.fleet/workflow.json`).
+- **Green or red from the app** works too, when your app sends verdicts (`verdicts`); only yours count, and only for the build you're looking at. Ship it always ships the exact code you reviewed.
+- **Status board:** set `board` to an issue and the loop keeps one comment there saying what's on your device, building, shipping and next; any session picks up from it.
+
 **"Ship it."**
 ```
 /fleet:ship
