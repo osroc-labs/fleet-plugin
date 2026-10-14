@@ -10,5 +10,5 @@ This session, as Fleet sees it:
 !`sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-join" status "${CLAUDE_SESSION_ID}"`
 
 - If it says `voyage: v…`, the session is already logged. Say so in one line with the voyage id and stop. Don't open a voyage.
-- If it says there's no key, tell the user to run the setup line from the fleet-plugin README and stop.
+- If it says there's no key, tell the user to run `/fleet:login` and stop.
 - If it says `voyage: none`, say in one line that the hooks register this session on its next prompt (if they still don't, run `/reload-plugins`), and stop. Don't open a voyage or write log entries.

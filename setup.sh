@@ -99,7 +99,7 @@ server=$(sed -n 's/.*"server"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$cfg"
 server="${server:-https://fleet.osroc.io}"
 code=$(printf 'header = "Authorization: Bearer %s"\n' "$key" |
   curl -sS -K - -m 15 -o /dev/null -w '%{http_code}' \
-    -A "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36 fleet-plugin/0.3.0" \
+    -A "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36 fleet-plugin/0.4.0" \
     "$server/api/voyages?open=1" 2>/dev/null || true)
 case "$code" in
 200) echo "Key works: the fleet answered." ;;

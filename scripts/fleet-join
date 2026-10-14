@@ -13,7 +13,7 @@ ST="$WF/state/$sid"
 case "$cmd" in
 status)
   if [ -z "$(fleet_key)" ]; then
-    echo "No Fleet key on this machine: run setup.sh first (see the fleet-plugin README)."
+    echo "No Fleet key on this machine: run /fleet:login first."
     exit 0
   fi
   # The hooks may have queued this session a moment ago: give the sender a few seconds.
