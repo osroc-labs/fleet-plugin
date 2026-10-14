@@ -1,6 +1,6 @@
 ---
 name: verify
-description: Check that a change really works and report pass or fail with evidence, by running the repo's tests and gates and then looking at the result (a URL with screenshots, or the app on a simulator). Never claims success unchecked. Use when the user runs /fleet:verify, asks "does it work?" or "check it" about a branch, PR, preview or production deploy, or as the step after fleet:build, fleet:triage or fleet:ship. If the repo has its own verify skill, use that instead.
+description: Check that a change really works and report pass or fail with evidence, by running the repo's tests and gates and then looking at the result (a URL with screenshots, or the app on a simulator). Never claims success unchecked. Use when the user runs /fleet:verify, asks "does it work?" or "check it" about a branch, PR, preview or production deploy, or as the step after fleet:build, fleet:triage, fleet:ship or in fleet:loop. If the repo has its own verify skill, use that instead.
 argument-hint: "[branch | PR | preview | production] [what changed]"
 allowed-tools: Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-repo"), Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-repo" *)
 ---
@@ -13,6 +13,8 @@ Read the shared rules once per session: `${CLAUDE_PLUGIN_ROOT}/skills/fleet-work
 
 Never say something works until this passed. Use the repo's own tools (its test runner, its e2e suite, plain `curl`), not hand-written harnesses.
 
+**Called by `fleet:loop`** (the input says `from fleet:loop <mode>`) before the user's review: run only the mode's quick check from the loop's § Modes table (a typecheck, lint on the touched files, then a real look: the simulator smoke test, the screenshots, the `curl` or CLI run), keep the evidence for the review, and return to the loop. The full run below comes after the user's green.
+
 ## 1. What changed
 
 `sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-repo"` for the commands and URLs. Then `git fetch origin && git diff origin/<main>...<branch> --stat` (or `gh pr diff <n> --name-only`) so the checks cover what changed.
@@ -24,7 +26,7 @@ Never say something works until this passed. Use the repo's own tools (its test 
 3. **The flow tests** (e2e, integration), focused on what changed when the suite is slow. A failing test you didn't touch: run it on the main branch too. Failing there as well means pre-existing: report it as such, don't fix it silently or call it yours.
 4. **Look at it.** Tests miss things a glance catches (a missing space, a clipped label):
    - **Web:** start the dev server (or use the preview URL), then `npx playwright screenshot --viewport-size=390,844 <url> <scratch>/<screen>.png` (and 1280 wide when desktop matters) for each changed screen, and read each screenshot.
-   - **iOS / Expo / React Native:** run it on a simulator as `fleet:ios-loop` § 2–4 does (a Fleet simulator or a local headless one), tap through the changed path, screenshot each step, then release the lease.
+   - **iOS / Expo / React Native:** run it on a simulator as `${CLAUDE_PLUGIN_ROOT}/skills/loop/ios.md` § 2–4 says (a Fleet simulator or a local headless one), tap through the changed path, screenshot each step, then release the lease.
    - **API or backend:** `curl` the changed endpoints against the local server or preview, with the inputs the change cares about.
 5. A failure caused by the change: fix it on the branch, rerun, and only then report.
 

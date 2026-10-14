@@ -31,7 +31,7 @@ Never guess a deploy command and run it.
 - The PR passed `fleet:verify` and `fleet:review` (or the repo's own). If not, run them first.
 - **Latest main first:** `git fetch origin`, merge `origin/<main>` into the branch; if it moved, rerun the gates on the merged branch and push.
 - Every gate in the settings passes on the branch. No migration edits one that already shipped.
-- For iOS changes: they ran on a simulator (`fleet:ios-loop`), the whole changed path tapped through, before production.
+- For iOS changes: they ran on a simulator (`fleet:loop ios`), the whole changed path tapped through, before production.
 
 ## 4. Merge, then deploy
 

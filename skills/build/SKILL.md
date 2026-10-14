@@ -1,6 +1,6 @@
 ---
 name: build
-description: Build a feature or change end to end on its own branch, following the repo's conventions, with tests and a draft PR, then hand off to verification. Hands iPhone work in iOS/Expo/React Native repos to fleet:ios-loop and open visual choices to fleet:prototype. Use when the user runs /fleet:build, picks a prototype option, or asks Fleet to build something. If the repo has its own build workflow, use that instead.
+description: Build a feature or change end to end on its own branch, following the repo's conventions, with tests and a draft PR, then hand off to verification. Hands iPhone work in iOS/Expo/React Native repos to fleet:loop ios and open visual choices to fleet:prototype. Use when the user runs /fleet:build, picks a prototype option, fleet:loop calls it, or asks Fleet to build something. If the repo has its own build workflow, use that instead.
 argument-hint: "<what to build, or an issue number>"
 allowed-tools: Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-repo"), Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-repo" *)
 ---
@@ -10,6 +10,8 @@ allowed-tools: Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-repo"), Bash(sh "${C
 Build: **$ARGUMENTS**
 
 Read the shared rules once per session: `${CLAUDE_PLUGIN_ROOT}/skills/fleet-workflows/SKILL.md`.
+
+**Called by `fleet:loop`** (the input says `from fleet:loop`): the loop already picked the task and started its voyage. Build it here (§ 1–4) whatever the mode, don't hand off, and return to the loop after the draft PR; it runs verify, review and the user's review next.
 
 ## 1. Understand it
 
@@ -31,7 +33,7 @@ On a prototype voyage: `voyage_stage` with `stage: "building"` and a one-line no
 
 ## 3. Build it
 
-- **iPhone or iPad work in an iOS, Expo or React Native repo:** hand off to `fleet:ios-loop` with the task, the branch and the voyage id. It builds, runs on a simulator, smoke tests and puts it up for review; come back here only if it hands back.
+- **iPhone or iPad work in an iOS, Expo or React Native repo,** run on its own: hand off to `fleet:loop ios once <task>` with the branch and the voyage id. It builds, runs on a simulator, smoke tests and puts it up for review. From the loop, build it here.
 - **Everything else:** make the change in small, reviewable steps. Match the repo's style, naming and structure. Handle the edge states (empty, loading, error, signed out, offline, long text) the change touches.
 - **Tests:** add or extend tests that cover the change: unit tests for logic, the repo's integration or e2e tests for flows. A bug fix gets a test that fails without the fix.
 - **Run the gates** from the settings (`gates`), or the repo's documented checks (typecheck, lint, format, test, build). Fix what fails. A failure that also happens on the main branch is pre-existing: note it, don't hide it.
@@ -47,4 +49,4 @@ On a prototype voyage: `voyage_stage` with `stage: "building"` and a one-line no
 
 Two or three lines: what was built, the branch and PR link, what the gates said.
 
-**Next:** `fleet:verify` on this branch (call it directly when the user asked to keep going). On a prototype voyage, `fleet:verify` then `voyage_stage` review with screenshots, and wait for the user's green.
+**Next:** `fleet:verify` on this branch (call it directly when the user asked to keep going). From `fleet:loop`: back to the loop. On a prototype voyage, `fleet:verify` then `voyage_stage` review with screenshots, and wait for the user's green.
