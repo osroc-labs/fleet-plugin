@@ -13,7 +13,7 @@
 HERE=$(dirname "$0")
 . "$HERE/lib.sh" 2>/dev/null || { echo "The Fleet plugin's files are missing; reinstall it with /plugin install fleet@osroc."; exit 1; }
 
-UA="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36 fleet-plugin/0.4.0"
+UA="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36 fleet-plugin/0.5.0"
 SERVER=$(fleet_server)
 PENDING="$FLEET_DIR/login.pending"
 SETUP_HINT="Get a key at $SERVER/app/keys, then in Terminal: curl -fsSL https://fleet.osroc.io/setup.sh | sh -s -- <key>"

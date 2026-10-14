@@ -1,10 +1,10 @@
 {
   "name": "fleet",
   "displayName": "Fleet",
-  "version": "0.4.0",
-  "description": "Wayfinding for Claude Code: every session becomes a voyage in your Fleet ship's log (prompts, commits, PRs, deploys, check-ins), plus the Fleet MCP tools. No binary: POSIX sh hooks.",
+  "version": "0.5.0",
+  "description": "A tools-included toolkit for building with Claude Code: chained workflows (idea, prototype, build, iOS loop, verify, review, ship, triage) backed by your Fleet's prototypes, inbox and simulators, plus a quiet log of every session. No binary: POSIX sh hooks.",
   "author": { "name": "osroc-labs", "url": "https://fleet.osroc.io" },
   "homepage": "https://fleet.osroc.io",
   "repository": "https://github.com/osroc-labs/fleet-plugin",
-  "keywords": ["fleet", "voyages", "session log", "wayfinding"]
+  "keywords": ["fleet", "workflows", "prototype", "ios", "simulator", "session log"]
 }

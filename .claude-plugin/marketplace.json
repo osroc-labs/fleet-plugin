@@ -6,7 +6,7 @@
     {
       "name": "fleet",
       "source": "./",
-      "description": "Every Claude Code session becomes a voyage in your Fleet ship's log, plus the Fleet MCP tools."
+      "description": "Workflows for building with Claude Code (idea, prototype, build, iOS loop, verify, review, ship, triage), your Fleet's simulators and prototypes, and a quiet session log."
     }
   ]
 }
