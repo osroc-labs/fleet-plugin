@@ -57,4 +57,4 @@ Keep it short and plain. No naval words here.
    - "show me it on an iPhone" → `fleet:sim`
 4. **Otherwise:** lead with the loop in one line (`/fleet:loop` keeps building on this project, task after task, in the mode it detects), then the single steps as a short list, then one line: "Tell me what you're working on and I'll pick the workflow."
 
-If the repo has its own skill for a step (the repo line lists its skills), say that one runs instead of Fleet's for that step.
+If the repo has its own skill for a step (`skills` in its settings, or a same-named skill on the repo line), say that one runs instead of Fleet's for that step; the loop itself stays in Fleet.
