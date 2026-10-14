@@ -1,22 +1,30 @@
 ---
 name: fleet-workflows
-description: Shared rules, the chain and the per-repo settings file (.fleet/workflow.json) for Fleet's workflow skills (fleet:idea, prototype, build, ios-loop, verify, review, ship, triage). Load it only while running one of those skills; it does nothing on its own.
+description: Shared rules, the chain and the per-repo settings file (.fleet/workflow.json) for Fleet's workflow skills (fleet:loop, idea, prototype, build, verify, review, ship, triage). Load it only while running one of those skills; it does nothing on its own.
 user-invocable: false
 ---
 
 # How the Fleet workflows fit together
 
-Fleet's workflows are the loop that ships a change: **idea → prototype → build → verify → review → ship**, with **triage** as the way in when something is broken. Each one is a skill you can run on its own (`/fleet:<name>`), and each one ends by naming the next.
+Fleet's workflows are the chain that ships a change: **idea → prototype → build → verify → review → ship**, with **triage** as the way in when something is broken. Each one is a skill you can run on its own (`/fleet:<name>`), and each one ends by naming the next. **`fleet:loop` conducts them**: it picks task after task and runs the chain for each, in a mode that fits the project (`ios`, `web`, `api`, `cli`, `prototype-only`); `/fleet:ios-loop` is `/fleet:loop ios`.
 
 ```
+  fleet:loop: the conductor, task after task, until the user says stop or the queue is empty
+
+  pick a task ─▶ prototype? ─▶ build ─▶ verify ─▶ review ─▶ the user's review ── Fix ─▶ build
+  (Inbox, orders,  (open-ended:         (the mode's                │ Ship it
+   issues, roadmap)  wait for the pick)   quick check)             ▼
+       ▲                                         solidify ─▶ ship (the yes, or greenShips)
+       └──────────────────────── next task ◀───────────────────────┘
+
             fleet:idea ──────────────┐
           (brain dump → issues)      │ clear enough to build
                  │ open-ended        │
                  ▼                   ▼
-          fleet:prototype ──pick──▶ fleet:build ──iOS/Expo/RN──▶ fleet:ios-loop
-          ▲     │    (options,         │                              │
-          └─────┘     the pick)        ▼                              │
-       another round            fleet:verify ◀───────────────────────┘
+          fleet:prototype ──pick──▶ fleet:build
+          ▲     │    (options,         │
+          └─────┘     the pick)        ▼
+       another round            fleet:verify
                                        │ pass
    fleet:triage ── fix ───────────────▶│
   ("it's broken")                      ▼
@@ -30,6 +38,7 @@ Fleet's workflows are the loop that ships a change: **idea → prototype → bui
 
 - Every skill ends with a **Next:** line naming the next skill and why, in one sentence.
 - If the user already said to keep going ("build it and ship it", "take it all the way"), call the next skill directly with the Skill tool instead of stopping. Otherwise stop and offer it.
+- **Called by `fleet:loop`** (the input says `from fleet:loop`): do the step, skip your own waiting (the loop checks decisions between tasks) and your own hand-off, and return to the loop with what it needs: branch, sha, PR, voyage id, evidence.
 - Hand context forward explicitly: the branch, the PR, the issue, the Fleet voyage id (if there is one) and the settings below. Never make the next step rediscover them.
 - **The repo's own skills come first.** `fleet-repo` (below) lists the repo's `.claude/skills` and `.claude/commands`. If the repo has its own skill for this step (its own `verify`, `deploy`, `review`, `prototype`…), use that one instead and say so in one line. Fleet's skills are the fallback, not a replacement.
 
@@ -37,7 +46,7 @@ Fleet's workflows are the loop that ships a change: **idea → prototype → bui
 
 1. **Verify before claiming.** Never say something works, passes or is fixed until you ran the check and read its output (or looked at the screenshot). "Should work" is not a result. Say plainly what you couldn't check.
 2. **Never push to the main branch.** Every change reaches main through a branch and a PR. Create branches without tracking main (`git switch --no-track -c <branch> origin/<main>`), push with an explicit destination (`git push -u origin <branch>:<branch>`), and before any push check that `git rev-parse --abbrev-ref @{u}` isn't `origin/<main>`.
-3. **Production needs a yes.** Anything that reaches real users (a production deploy, a store submission, an over-the-air update to production, a merge that auto-deploys) needs the user's explicit yes for that specific change, in chat. Typing `/fleet:ship` themselves counts. Silence, a green test run or your own judgment never does. Preview and staging environments follow the repo's rules; when the repo has none, ask once.
+3. **Production needs a yes.** Anything that reaches real users (a production deploy, a store submission, an over-the-air update to production, a merge that auto-deploys) needs the user's explicit yes for that specific change, in chat. Typing `/fleet:ship` themselves counts, and so does **Ship it** on a Fleet review when the settings have `greenShips: true`. Silence, a green test run or your own judgment never does. Preview and staging environments follow the repo's rules; when the repo has none, ask once.
 4. **Release what you lease, stop what you start.** Every Fleet `lease` gets a `release`, even after a failure. Every simulator you booted, dev server, Metro, tunnel, watcher or background shell you started is stopped before you report. Check before the report; say what you left running and why (rarely).
 5. **Brief updates.** Short plain sentences. Report results, not narration: what changed, what passed, what's waiting on the user, links last.
 6. **Decide; don't ask** for things you can find out (the repo, its docs, its scripts). Ask only for a yes to ship, credentials or money, destructive actions, or a product direction that's expensive to undo. List the calls you made under "Decisions I made" in the PR.
@@ -98,7 +107,9 @@ It prints the saved settings (if any) and what the repo suggests: main branch, p
     "urlScheme": "example",
     "simulator": "iphone"
   },
-  "issues": { "labels": ["idea"] },
+  "issues": { "labels": ["ready"], "milestone": null },
+  "roadmap": "ROADMAP.md",
+  "loop": { "mode": "ios", "slots": 1, "maxWaiting": 3 },
   "greenShips": false,
   "confirmedAt": "2026-01-01"
 }
@@ -106,7 +117,9 @@ It prints the saved settings (if any) and what the repo suggests: main branch, p
 
 - `ios.kind` is one of `expo-go`, `expo-dev-client`, `react-native`, `native`, or `none`.
 - `gates` are the commands that must pass before anything is called done (keys into `commands`).
-- `greenShips: true` means the user's **Ship it** on the Fleet dashboard is also their yes for production. Only set it when the user says so. Default `false`: Ship it approves the change, and you still ask once before production.
+- `issues` and `roadmap` are where `fleet:loop` looks for tasks, after the user's Fleet Inbox and orders: open issues with those labels (and that milestone), then the roadmap (a file, or an epic issue number).
+- `loop.mode` is `ios`, `web`, `api`, `cli` or `prototype-only`; `loop.slots` is how many tasks run at once (each its own simulator or dev server); `loop.maxWaiting` caps how many tasks wait on the user's review before the loop stops starting new ones.
+- `greenShips: true` means the user's **Ship it** on the Fleet dashboard is also their yes for production. Only set it when the user says so. Default `false`: Ship it approves the change, and you still ask once before production. With it on, `fleet:loop` merges and ships each task on its green, like a sprint where the user's device test is the sign-off.
 - Leave anything unknown `null`. Never put a secret in this file.
 
 **Discover, then confirm once.** When the file is missing, or a workflow needs a key it lacks: fill it from `fleet-repo`, the repo's docs and CI config, show the user the few values that matter for this step in one short block ("Tests: `pnpm test` · Deploy: `pnpm run deploy` · Production: https://… Right?"), and write the file once they confirm (or correct it). Don't ask about keys the current workflow doesn't use. Suggest committing it (it's shared with the team) on the next branch you open; it holds no secrets.

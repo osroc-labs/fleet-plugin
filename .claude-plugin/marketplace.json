@@ -6,7 +6,7 @@
     {
       "name": "fleet",
       "source": "./",
-      "description": "Workflows for building with Claude Code (idea, prototype, build, iOS loop, verify, review, ship, triage), your Fleet's simulators and prototypes, and a quiet session log."
+      "description": "A perpetual build loop for Claude Code (/fleet:loop: ios, web, api, cli and prototype-only modes) and the workflows it conducts (idea, prototype, build, verify, review, ship, triage), your Fleet's simulators and prototypes, and a quiet session log."
     }
   ]
 }

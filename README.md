@@ -1,10 +1,44 @@
 # Fleet for Claude Code
 
-A tools-included toolkit for building with Claude Code, and for having fun with your friends while you do. Fleet gives Claude a set of clearly stated workflows that chain into each other (idea, prototype, build, the iPhone loop, verify, review, ship, triage), backed by your Fleet: **Prototypes** where you pick between options, an **Inbox** of what's waiting on you, **simulators** on your Macs, and a quiet log of every session you can search and resume.
+A tools-included toolkit for building with Claude Code, and for having fun with your friends while you do. At its heart is **`/fleet:loop`**: one perpetual build loop for a project that picks the next task, builds it, checks it, puts it in front of you, and ships it on your green, then does the next one. It conducts a set of clearly stated workflows (idea, prototype, build, verify, review, ship, triage) that also run on their own, backed by your Fleet: **Prototypes** where you pick between options, an **Inbox** of what's waiting on you, **simulators** on your Macs, and a quiet log of every session you can search and resume.
 
-Type `/fleet` to start. It shows the workflows, what's waiting on you, and suggests the right one for what you describe.
+Type `/fleet` to start. It shows the loop and the workflows, what's waiting on you, and suggests the right one for what you describe.
 
 No binary to install: the hooks and helpers are small POSIX `sh` scripts that use only `curl`, `git`, `sed`, `awk` and `date`.
+
+## The loop
+
+```
+/fleet:loop [mode] [slots]          until you say stop, or the queue is empty
+
+ ┌─▶ 1. pick the next task   your Fleet Inbox and orders → GitHub issues → the roadmap
+ │        │ open-ended?
+ │        ├─────▶ 2. /fleet:prototype ┄┄ waits for your pick (the loop works on other tasks)
+ │        ▼                  │ Build <option>
+ │   3. /fleet:build ◀───────┴─────────────────────┐
+ │        ▼                                        │
+ │   4. /fleet:verify   the mode's quick check     │
+ │        ▼                                        │
+ │   5. /fleet:review   fresh eyes, fixes          │
+ │        ▼                                        │
+ │   6. up for your review in Fleet                │
+ │      (test steps + screenshots or a preview)    │
+ │        ▼                                        │
+ │   7. your verdict ─────── Fix + notes ──────────┘ 8.
+ │        │ Ship it
+ │        ▼
+ │      solidify (tests, every gate) ─▶ /fleet:ship (your yes, or Ship it with greenShips)
+ └── 9. next task
+```
+
+| Mode | For | Its check before you look | What you review |
+| --- | --- | --- | --- |
+| `ios` | iOS, Expo and React Native apps | A smoke test on a leased simulator: taps and screenshots | Simulator screenshots; a phone preview when the repo has one |
+| `web` | Sites and web apps | The changed flow's tests, then screenshots of the dev server or preview URL at phone and desktop width | Screenshots and the preview URL |
+| `api` / `cli` | Servers and command-line tools | Tests, then `curl` or the commands themselves | The commands and their output |
+| `prototype-only` | Deciding before building | None | Rounds of options; picks are recorded on the issue for a later build |
+
+The mode is detected from the repo when you leave it out, and saved once confirmed. **`/fleet:loop 2`** (or `ios 2`) runs two tasks at once as separate agents, each with its own simulator, never more than your Macs have room for (`fleet_status`). Each task is tracked in Fleet (Inbox, Sessions, Prototypes), and the loop keeps a short journal on its session, so anyone on your Fleet can pick it up with `/fleet:loop resume`. Type **stop** and it finishes or parks the current step, releases every simulator, stops what it started and sums up. `/fleet:ios-loop` is `/fleet:loop ios`.
 
 ## The workflows
 
@@ -13,10 +47,10 @@ No binary to install: the hooks and helpers are small POSIX `sh` scripts that us
           (brain dump → issues)      │ clear enough to build
                  │ open-ended        │
                  ▼                   ▼
-          /fleet:prototype ─pick─▶ /fleet:build ─iOS/Expo/RN─▶ /fleet:ios-loop
-          ▲     │  (options in        │                              │
-          └─────┘   Prototypes)       ▼                              │
-       another round           /fleet:verify ◀──────────────────────┘
+          /fleet:prototype ─pick─▶ /fleet:build
+          ▲     │  (options in        │
+          └─────┘   Prototypes)       ▼
+       another round           /fleet:verify
                                       │ pass
   /fleet:triage ── fix ──────────────▶│
   ("it's broken")                     ▼
@@ -28,11 +62,12 @@ No binary to install: the hooks and helpers are small POSIX `sh` scripts that us
 
 | Command | Does | Next |
 | --- | --- | --- |
-| `/fleet` | The front door: the workflows, what's waiting on you, and which one fits | the one it suggests |
+| `/fleet` | The front door: the loop, the workflows, what's waiting on you, and which one fits | the one it suggests |
+| `/fleet:loop [mode] [n]` | Keeps building on the project: pick, prototype if open-ended, build, verify, review, your review, ship on green, next; modes `ios`, `web`, `api`, `cli`, `prototype-only`; `n` tasks at once | runs until you say stop |
+| `/fleet:ios-loop` | Same as `/fleet:loop ios` | |
 | `/fleet:idea` | A brain dump becomes researched, scoped GitHub issues (existing ones merged, not duplicated) | prototype or build |
 | `/fleet:prototype` | 2–4 genuinely different options as HTML pages or real simulator screenshots, published to Prototypes; waits for your pick (Build, Another round, Tuck away) | build the pick |
-| `/fleet:build` | Builds a feature on its own branch with tests and a draft PR; hands iPhone work to the iOS loop | verify |
-| `/fleet:ios-loop` | Leases a simulator, builds or installs the app (tunnels Metro when needed), smoke tests it with taps and screenshots, and puts it up for your review; iterates on Fix, solidifies on Ship it; `2` runs two tasks at once | verify, review, ship |
+| `/fleet:build` | Builds a feature on its own branch with tests and a draft PR; hands iPhone work to the loop's ios mode | verify |
 | `/fleet:verify` | The repo's tests and gates plus a real look (a page or a simulator, with screenshots); pass or fail, never claimed unchecked | review |
 | `/fleet:review` | An independent review (correctness, security, regressions, data cost, rollout), fixed on the branch | ship |
 | `/fleet:ship` | Merges and deploys with the repo's own deploy command, **only with your yes**, then verifies production | done |
@@ -45,7 +80,7 @@ No binary to install: the hooks and helpers are small POSIX `sh` scripts that us
 
 Each workflow ends by naming the next step, and goes straight on when you've said to keep going ("build it and take it to review"). The rules they all share: verify before claiming anything works, never push to the main branch (branches and PRs only), production needs your explicit yes, every simulator lease is released and everything started is stopped, and updates stay brief. The shared rules live in [`skills/fleet-workflows/SKILL.md`](skills/fleet-workflows/SKILL.md).
 
-**Your repo comes first.** If a repo has its own skill for a step (its own `verify`, `deploy`, `review`…), Fleet uses that one. Fleet's workflows read the repo (its CLAUDE.md, scripts, `app.json`, `ios/`, CI and deploy config) to work out the commands, confirm them with you once, and save them in **`.fleet/workflow.json`**: test, build and deploy commands, gates, the iOS scheme and bundle id, preview and production URLs. It holds no secrets; commit it so your team shares it. `greenShips: true` there makes **Ship it** on a Fleet review your yes for production too; it's off unless you turn it on.
+**Your repo comes first.** If a repo has its own skill for a step (its own `verify`, `deploy`, `review`…), Fleet uses that one. Fleet's workflows read the repo (its CLAUDE.md, scripts, `app.json`, `ios/`, CI and deploy config) to work out the commands, confirm them with you once, and save them in **`.fleet/workflow.json`**: test, build and deploy commands, gates, the iOS scheme and bundle id, preview and production URLs. It holds no secrets; commit it so your team shares it. The loop reads its settings there too: `loop.mode`, `loop.slots`, and where tasks come from (`issues.labels`, `issues.milestone`, `roadmap`). `greenShips: true` there makes **Ship it** on a Fleet review your yes for production too, so the loop ships each task on your green; it's off unless you turn it on.
 
 **No Fleet account?** The workflows still run: options stay as local files, simulators are local and headless, and decisions happen in chat.
 
@@ -77,7 +112,7 @@ That's it. Type `/fleet` to see the workflows. Your sessions now show up on your
 
 ## What's included
 
-- **The workflow skills** above, plus the shared rules. Claude loads a workflow only when you run it or ask for what it does (options to pick, a review, a deploy); the descriptions say when. Nothing runs on its own, and Claude never starts Fleet tasks outside these workflows.
+- **The loop and the workflow skills** above, plus the shared rules. Claude loads a workflow only when you run it or ask for what it does (options to pick, a review, a deploy); the descriptions say when. Nothing runs on its own, and Claude never starts Fleet tasks outside these workflows.
 - **Session logging hooks.** Each session registers on its first event and closes when it ends. Logged: your prompts, a one-line check-in after each turn (the start of Claude's reply), subagents' results, `git commit` and `git push`, `gh pr merge`, deploys (wrangler, `npm`/`pnpm`/`yarn`/`bun run deploy`, eas, fly, netlify, firebase, `vercel --prod`), PR, issue and claude.ai artifact links, and "waiting on you" when Claude needs you. **The hooks only listen:** they print nothing and add nothing to Claude's context.
 - **The Fleet MCP tools**: prototypes and reviews (`voyage_start` with `course: "prototype"`, `chart_options`, `await_decision`, `voyage_stage`), simulators on your Macs (`lease`, `boot`, `install_app`, `open_url`, `screenshot`, `tap`, `type_text`, `release`…), uploads (`upload_url`) and your session log. Claude uses them only inside a workflow or when you ask.
 - **The `berths` skill**, which Claude loads only when it needs to see an app on an Apple device.

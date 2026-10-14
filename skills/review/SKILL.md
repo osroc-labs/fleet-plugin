@@ -1,6 +1,6 @@
 ---
 name: review
-description: An independent review of a branch or PR before it merges, with fresh eyes, for correctness, security and privacy, regressions, performance and data cost, rollout safety, tests and leftover debris, then fix the findings on the same branch. Use when the user runs /fleet:review, asks for a review of a branch or PR, or as the step after fleet:verify. If the repo has its own review skill, use that instead.
+description: An independent review of a branch or PR before it merges, with fresh eyes, for correctness, security and privacy, regressions, performance and data cost, rollout safety, tests and leftover debris, then fix the findings on the same branch. Use when the user runs /fleet:review, asks for a review of a branch or PR, or as the step after fleet:verify (fleet:loop runs it before the user's review). If the repo has its own review skill, use that instead.
 argument-hint: "<PR number or branch> [base branch]"
 allowed-tools: Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-repo"), Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-repo" *)
 ---
@@ -61,4 +61,4 @@ Read the repo's instructions (CLAUDE.md, CONTRIBUTING.md, docs on conventions) f
 
 Findings fixed (one line each), anything left and why, the PR link.
 
-**Next:** clean → `fleet:ship` (it asks for the user's yes before production). Fixes that changed behavior → `fleet:verify` first.
+**Next:** from `fleet:loop`: back to the loop. Otherwise clean → `fleet:ship` (it asks for the user's yes before production). Fixes that changed behavior → `fleet:verify` first.

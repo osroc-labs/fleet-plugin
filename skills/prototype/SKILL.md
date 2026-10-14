@@ -17,6 +17,8 @@ The user decides by looking. This skill makes the options, puts them in front of
 
 **Resuming** (`resume <voyage id>`, or the user says they picked): call `voyage_resume` and do what its `nextStep` says (skip to § 5).
 
+**Called by `fleet:loop`** (the input says `from fleet:loop`): use the task voyage it hands you (no new `voyage_start`), and after `chart_options` and the three lines to the user, return to the loop instead of calling `await_decision`: it checks for the pick between its other tasks.
+
 ## 1. Context (keep it short)
 
 - `sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-repo"`: the repo, its settings, and whether it has its own prototype skill (use that one if so).
@@ -42,7 +44,7 @@ The user decides by looking. This skill makes the options, puts them in front of
 - **Real copy, real data, the product's real look** (its fonts, colors, spacing and components). Copy is literal and usually ships as written.
 - **Recommend exactly one**, and mark it on its page ("Recommended" with a clear outline) so the pick is visible without scrolling.
 - **Each option is one self-contained HTML file**: inline all CSS, JS, fonts and images (images as `data:` URIs; keep each file under ~5 MB). Fleet shows pages in a sandbox: scripts run, but no network calls to your servers and no cookies. Put them in a scratch folder (`<scratchpad>/<slug>/A.html`, `B.html`…).
-- **Native screenshots instead:** start a voyage first (§ 4 step 1), `lease` an `iphone` berth on it, `boot`, put the app on it (`fleet:ios-loop` § 2–3 covers install and Metro), set up each state and use `capture_lease_id` as the option's media. **Release the lease right after `chart_options`**: captures are copied when the round is published, so you don't need the simulator while the user decides.
+- **Native screenshots instead:** start a voyage first (§ 4 step 1), `lease` an `iphone` berth on it, `boot`, put the app on it (`${CLAUDE_PLUGIN_ROOT}/skills/loop/ios.md` § 2–3 covers install and Metro), set up each state and use `capture_lease_id` as the option's media. **Release the lease right after `chart_options`**: captures are copied when the round is published, so you don't need the simulator while the user decides.
 - **Check once before publishing:** screenshot each page locally at 390 px (and 1280 px if desktop matters), e.g. `npx playwright screenshot --viewport-size=390,844 file://<path>/A.html <scratch>/A.png`, look at it, fix what's wrong. One pass.
 
 ## 4. Publish to Fleet
