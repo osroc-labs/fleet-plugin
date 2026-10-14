@@ -45,7 +45,7 @@ On a prototype voyage: `voyage_stage` with `stage: "building"` and a one-line no
 
 - Commit with clear messages. Check `git rev-parse --abbrev-ref @{u}` isn't the main branch, then `git push -u origin <branch>:<branch>`.
 - Open a **draft PR** (`gh pr create --draft`): what changed in plain words, how it was tested, "Decisions I made", and `Fixes #<n>` / `Refs #<n>`.
-- On a voyage: `voyage_git` with branch, PR, sha and `pushed: true`.
+- On a voyage: `voyage_log` kind `state` with `git` (branch, pr, sha, `pushed: true`).
 
 ## Report
 

@@ -5,6 +5,7 @@ One line per release of the `fleet` plugin, newest first, with the osroc-labs/fl
 ## Unreleased
 - Less context per session: one-line skill and command descriptions (about 1,500 to 770 tokens), and the MCP tool descriptions and server instructions cut by about 44% (server side, no plugin update needed); the detail moved into the skills (berths: leases, sticky berths, Metro tunnels, Maestro flows).
 - `fleet-guard` costs almost nothing when off: a builtin-only check of `.fleet/workflow.json` before it loads anything, so the after-every-tool hook no longer runs git or grep (about 17 ms to 4 ms a call). On, it behaves exactly as before.
+- GitHub integration removed (the Quartermaster app, orders from ⚓ set sail and /sail, Ship's log comments and checks on issues and PRs): `/fleet:commission` is gone (projects come from sessions and Add project; pick the avatar on the project's page), the loop takes tasks from your Fleet Inbox, then GitHub issues via `gh`, then the roadmap, and builds record git with `voyage_log` `git`. The skills' own `gh` use (issues, PRs, the loop's board comment) is unchanged.
 
 ## 0.8.14
 - Long calls never hang: `run_flow`, `boot`, `install_app`, `record_stop` and `launch_app` (with an update wait) answer within 45 s with "Still running" and an op id; `op_result` returns the result. A same-op-id retry returns the first result instead of re-running. `await_decision` waits at most 45 s per call (#21).

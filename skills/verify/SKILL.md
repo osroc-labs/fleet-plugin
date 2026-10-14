@@ -65,7 +65,7 @@ Verify <branch|preview|production> · <sha>
 ✓ typecheck  ✓ lint  ✓ unit 212 passed  ✗ e2e 1 failed  ○ 3 skipped
 ✗ checkout.spec › applies a coupon: <first line of the error>
 Looked at: /settings (390 px) ✓, /checkout ✗ total overlaps the button
-Signed in (smoke): ✓ GET /api/me 200 · ✓ GET /api/orders 200
+Signed in (smoke): ✓ GET /api/me 200 · ✓ GET /api/voyages 200
 Preview-only absent: ✓ "Staging" badge · ✓ staging.example.com
 Known flakes: search.spec › debounces (#41) · new: cart.spec › badge count (reran alone once, passed; #57 opened)
 Errors since deploy (12 min): none

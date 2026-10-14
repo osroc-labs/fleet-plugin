@@ -49,7 +49,6 @@ Use labels the repo already has (`gh label list`); the settings' `issues.labels`
 
 Without `gh` or a GitHub remote: give the issues as Markdown in the chat, ready to paste, and say where they'd go.
 
-If the user's Fleet has GitHub connected, labeling an issue `⚓ set sail` hands it to an agent later as an order (`orders`). Mention it once, only if they ask how to queue work.
 
 ## Report
 

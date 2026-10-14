@@ -17,7 +17,7 @@ This repo: !`sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-repo" --short`
 
 ## The loop
 
-**`/fleet:loop`** keeps building on this project until you say stop: it picks the next task (your Fleet Inbox and orders, then GitHub issues, then the roadmap), shows options first when it's open-ended, builds, checks and reviews it, puts it up for your review in Fleet, and ships it on your green (production still needs your yes unless you've turned on `greenShips`). Then the next one.
+**`/fleet:loop`** keeps building on this project until you say stop: it picks the next task (your Fleet Inbox, then GitHub issues, then the roadmap), shows options first when it's open-ended, builds, checks and reviews it, puts it up for your review in Fleet, and ships it on your green (production still needs your yes unless you've turned on `greenShips`). Then the next one.
 
 - Modes: `ios` (simulators), `web` (preview URL or dev server), `api`, `cli`, `prototype-only` (options, no building); picked from the repo when you don't say.
 - `/fleet:loop 2` runs two tasks at once, each on its own simulator. `/fleet:ios-loop` is `/fleet:loop ios`.

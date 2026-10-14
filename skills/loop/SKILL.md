@@ -35,7 +35,7 @@ Read the shared rules once per session: `${CLAUDE_PLUGIN_ROOT}/skills/fleet-work
 
 ```
  ┌─▶ 1. pick the next task ─────────── queue empty ───▶ stop
- │        │ open-ended                 (Inbox and orders → issues → roadmap)
+ │        │ open-ended                 (Inbox → issues → roadmap)
  │        ├──────────▶ 2. fleet:prototype ─ waits for the pick ┄┄ (the loop works on other tasks)
  │        │                     │ Build <option>
  │        ▼                     ▼
@@ -90,7 +90,7 @@ A mapped `round` covers § 3 and § 4 and the preview (§ 6 step 4): it returns 
 Take the first that fits, in this order:
 
 1. **Named in the input** (a task or an issue number).
-2. **The user's Fleet:** decisions that came back on this repo's voyages (§ 0 step 6), then `orders` with this repo: issues the user marked to sail. Taking one: `voyage_start` with `repo` and `issue`.
+2. **The user's Fleet:** decisions that came back on this repo's voyages (§ 0 step 6).
 3. **Open GitHub issues:** with `issues.parent` set, its open sub-issues (`gh api repos/{owner}/{repo}/issues/<parent>/sub_issues --paginate --jq '.[] | select(.state=="open") | {number,title,labels:[.labels[].name]}'`), filtered by `issues.labels` when set; else `gh issue list --state open --label <issues.labels> [--milestone <issues.milestone>] --json number,title,labels,assignees,updatedAt` (with no labels saved, the open issues the repo treats as ready: a `ready`/`next`/`roadmap` label, a milestone, or the user's own). Skip issues with an open PR (`gh pr list --search "<n> in:body"`), assigned to someone else, labeled blocked or waiting, or already on an open voyage.
 4. **The roadmap:** `roadmap` in the settings (a file such as `ROADMAP.md` or an epic issue's checklist). Open the issue first (the `idea` step, § Step skills, turns a roadmap line into one) so every task has an issue.
 5. **Nothing left:** the queue is empty. Wait for the decisions still out (§ 7–8), then stop (§ Stop).
