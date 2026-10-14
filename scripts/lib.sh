@@ -127,6 +127,72 @@ json_text() {
     }'
 }
 
+# Is stdin one valid JSON value (RFC 8259: strings with only legal escapes and no raw control characters)? Exit 0 if
+# so; else exit 1 and print the 0-based byte offset of the first bad byte. For one event or a session block, not a
+# whole batch (it is linear per string, not per batch).
+json_check() {
+  awk '
+    function bad() { if (!err) err = p; return 0 }
+    function ws() { while (p <= n && index(" \t\n\r", substr(s, p, 1)) > 0) p++ }
+    function str(   r) {
+      r = substr(s, p)
+      if (match(r, /^"([^"\\\001-\037]|\\["\\\/bfnrt]|\\u[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F])*"/)) { p += RLENGTH; return 1 }
+      match(r, /^"([^"\\\001-\037]|\\["\\\/bfnrt]|\\u[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F])*/)
+      p += RLENGTH
+      return bad()
+    }
+    function val(   c, r) {
+      ws()
+      if (p > n) return bad()
+      c = substr(s, p, 1)
+      if (c == "{") return obj()
+      if (c == "[") return arr()
+      if (c == "\"") return str()
+      if (substr(s, p, 4) == "true" || substr(s, p, 4) == "null") { p += 4; return 1 }
+      if (substr(s, p, 5) == "false") { p += 5; return 1 }
+      r = substr(s, p, 400)
+      if (match(r, /^-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?/) && RLENGTH > 0) { p += RLENGTH; return 1 }
+      return bad()
+    }
+    function obj(   c) {
+      p++; ws()
+      if (substr(s, p, 1) == "}") { p++; return 1 }
+      while (1) {
+        ws()
+        if (substr(s, p, 1) != "\"") return bad()
+        if (!str()) return 0
+        ws()
+        if (substr(s, p, 1) != ":") return bad()
+        p++
+        if (!val()) return 0
+        ws(); c = substr(s, p, 1)
+        if (c == ",") { p++; continue }
+        if (c == "}") { p++; return 1 }
+        return bad()
+      }
+    }
+    function arr(   c) {
+      p++; ws()
+      if (substr(s, p, 1) == "]") { p++; return 1 }
+      while (1) {
+        if (!val()) return 0
+        ws(); c = substr(s, p, 1)
+        if (c == ",") { p++; continue }
+        if (c == "]") { p++; return 1 }
+        return bad()
+      }
+    }
+    { s = (NR > 1) ? s "\n" $0 : $0 }
+    END {
+      n = length(s); p = 1; err = 0
+      ok = val()
+      if (ok) { ws(); if (p <= n) ok = bad() }
+      if (ok) exit 0
+      print err - 1
+      exit 1
+    }'
+}
+
 # Redact secrets from stdin before anything is queued. Order matters: specific keys first.
 redact() {
   sed -E \

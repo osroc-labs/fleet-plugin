@@ -73,15 +73,39 @@ session_block() {
   case "$branch" in HEAD | "" | *[!A-Za-z0-9._/-]*) ;; *) SESSION="$SESSION,\"branch\":\"$branch\"" ;; esac
   case "$sha" in *[!0-9a-f]* | "") ;; *) SESSION="$SESSION,\"headSha\":\"$sha\",\"pushed\":$pushed" ;; esac
   stitle=$(cat "$WF/state/$1.title" 2>/dev/null)
+  sbase="{$SESSION}"
   [ -n "$stitle" ] && SESSION="$SESSION,\"title\":\"$stitle\""
   SESSION="{$SESSION}"
+  # Never a session block that would sink every event: a bad saved name (or anything else) is left out.
+  if ! _off=$(printf '%s' "$SESSION" | json_check); then
+    flog "session $1: block isn't valid JSON at byte $_off; sending it without the bad part"
+    SESSION=$sbase
+    # The saved name was the bad part: forget it, so the next check-in sends the name afresh.
+    if printf '%s' "$SESSION" | json_check >/dev/null; then rm -f "$WF/state/$1.title"; else SESSION="{\"machine\":\"$HOST\"}"; fi
+  fi
 }
 
 # One event as JSON: kind $1, text $2 (JSON-escaped), opId $3, seq $4, data $5 (a JSON object, optional), time $6
 # (optional: a transcript timestamp). Without $6 it's AT, when the hook queued the line (its time line), else now.
+# Always valid JSON: an event that isn't (a bad escape in the text, broken data) is logged with the byte where it
+# breaks, then sent without its data, else without its text too, so one bad event never costs the whole batch.
+# Pass data built in a variable, never a "{…,…}" literal inside "$(…)": macOS /bin/sh (bash 3.2) brace-expands it.
 NODATA='{}'
 AT=""
-event() { printf '{"opId":"%s","seq":%s,"at":"%s","kind":"%s","text":"%s","data":%s}' "$3" "$4" "${6:-${AT:-$(now_iso)}}" "$1" "$2" "${5:-$NODATA}"; }
+event() {
+  _at=${6:-${AT:-}}
+  case "$_at" in "" | *[!0-9TZ:.+-]*) _at=$(now_iso) ;; esac
+  _ev=$(printf '{"opId":"%s","seq":%s,"at":"%s","kind":"%s","text":"%s","data":%s}' "$3" "$4" "$_at" "$1" "$2" "${5:-$NODATA}")
+  if _off=$(printf '%s' "$_ev" | json_check); then printf '%s' "$_ev"; return 0; fi
+  flog "event $3 ($1) isn't valid JSON at byte $_off: $(printf '%s' "$_ev" | cut -c "$((_off > 60 ? _off - 60 : 1))-$((_off + 40))" | tr -d '\n'); sent without the bad part"
+  _op=$(printf '%s' "$3" | tr -cd 'A-Za-z0-9_-')
+  _seq=$(printf '%s' "$4" | tr -cd '0-9')
+  _kind=$(printf '%s' "$1" | tr -cd 'a-z_')
+  _ev=$(printf '{"opId":"%s","seq":%s,"at":"%s","kind":"%s","text":"%s","data":{}}' "$_op" "${_seq:-0}" "$_at" "$_kind" "$2")
+  printf '%s' "$_ev" | json_check >/dev/null ||
+    _ev=$(printf '{"opId":"%s","seq":%s,"at":"%s","kind":"%s","text":"","data":{}}' "$_op" "${_seq:-0}" "$_at" "$_kind")
+  printf '%s' "$_ev"
+}
 
 # Does the server take Claude's replies (kind "reply")? GET /api/wayfind says "replies": true on a server that does; one
 # that predates them gets none, so nothing is refused or logged as a stray note. The answer is kept in caps for an hour
@@ -282,13 +306,15 @@ send_line() {
     answer:*) return 0 ;; # the server clears a wait on the session's next event
     note:pr:\ * | note:issue:\ * | note:artifact:\ *)
       u=${text#*: }
-      send_events "$sid" "$(event artifact "$text" "$op" "$seq" "{\"type\":\"${text%%:*}\",\"url\":\"$u\"}")"
+      d="{\"type\":\"${text%%:*}\",\"url\":\"$u\"}"
+      send_events "$sid" "$(event artifact "$text" "$op" "$seq" "$d")"
       ;;
     note:commit\ * | note:push:\ * | note:merge:\ * | note:deploy:\ *)
       t=${text%%:*}; t=${t%% *}
-      send_events "$sid" "$(event artifact "$text" "$op" "$seq" "{\"type\":\"$t\"}")"
+      d="{\"type\":\"$t\"}"
+      send_events "$sid" "$(event artifact "$text" "$op" "$seq" "$d")"
       ;;
-    *) send_events "$sid" "$(event log "$text" "$op" "$seq" "{\"logKind\":\"${kind:-note}\"}")" ;;
+    *) d="{\"logKind\":\"${kind:-note}\"}"; send_events "$sid" "$(event log "$text" "$op" "$seq" "$d")" ;;
     esac
     ;;
   '{"t":"turn",'*)
@@ -299,7 +325,10 @@ send_line() {
     if [ -n "$crew" ]; then
       text=$(printf '%s' "$raw" | json_unescape | redact | tr '\n' ' ' | json_text 280)
       case "$crew" in
-      *@*) send_events "$sid" "$(event crew_end "$text" "$op" "$seq" "{\"agentType\":\"${crew%@*}\",\"agentId\":\"${crew##*@}\"}")" ;;
+      *@*)
+        d="{\"agentType\":\"${crew%@*}\",\"agentId\":\"${crew##*@}\"}"
+        send_events "$sid" "$(event crew_end "$text" "$op" "$seq" "$d")"
+        ;;
       *) [ -n "$text" ] || return 0; send_events "$sid" "$(event log "Crew ($crew): $text" "$op" "$seq" '{"logKind":"note"}')" ;;
       esac
     else
@@ -361,7 +390,8 @@ send_line() {
     ;;
   '{"t":"close",'*)
     reason=$(printf '%s' "$line" | sed -n 's/^{"t":"close","reason":"\(.*\)"}$/\1/p')
-    if send_events "$sid" "$(event end "" "$op" "$seq" "{\"reason\":\"${reason:-other}\"}")"; then rm -f "$WF/sessions/$sid"; fi
+    d="{\"reason\":\"${reason:-other}\"}"
+    if send_events "$sid" "$(event end "" "$op" "$seq" "$d")"; then rm -f "$WF/sessions/$sid"; fi
     ;;
   *)
     flog "unknown queue line for $sid; dropped"
