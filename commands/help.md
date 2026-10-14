@@ -85,7 +85,10 @@ Merges and deploys, only after your yes, then checks production.
 
 ## Good to know
 
-- **Name your sessions** with `/rename <name>` in Claude; Fleet uses the same name.
+- **Name your sessions** with `/rename <name>` in Claude; Fleet uses the same name. When the topic changes, Claude suggests a new name.
+- **Every report ends the same way:** Callouts, Waiting on you, PR links and Options waiting on you, with a link on everything you need to do. "Live" means you can open it, not just merged.
+- **Agents pick the right model for the job** (the strongest for anything you'll see, a lighter one for small fixes, checked by the strongest) and work in their own git worktrees, never your checkout.
+- **Say "always" or "never" and it sticks:** Claude writes the rule into your repo with the date and your words, not just its memory.
 - **Nothing ships without your yes.** Claude asks in your Inbox or in chat before anything goes to production.
 - **On your phone?** The dashboard works there too: answer questions and pick options from anywhere.
 - **Updating Fleet:** in a terminal, run `claude plugin marketplace update osroc` and then `claude plugin update fleet@osroc`, then start a new session.

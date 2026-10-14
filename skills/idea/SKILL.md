@@ -53,6 +53,6 @@ If the user's Fleet has GitHub connected, labeling an issue `⚓ set sail` hands
 
 ## Report
 
-A short list: new issues (links), issues updated or merged (links, what changed), and the one or two questions that most need the user.
+Opening lines: new issues (links), issues updated or merged (links, what changed), and the one or two questions that most need the user. Then the closing sections (shared rules § Reporting).
 
 **Next:** for an idea whose look or feel is open → `fleet:prototype <issue>`; for one that's clear → `fleet:build <issue>`. Offer the one that fits; start it only if the user said to keep going.

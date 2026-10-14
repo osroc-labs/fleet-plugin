@@ -1,5 +1,5 @@
 {
-  "description": "Fleet wayfinding: passively log this session as a voyage (local queue, never blocks, never talks to Claude)",
+  "description": "Fleet wayfinding: passively log this session as a voyage (local queue, never blocks, never talks to Claude). Plus two opt-in guards (fleet-guard), off unless .fleet/workflow.json turns them on: agents.enforceBriefs checks Agent briefs, agents.unpushedWork flags worktree commits on no remote.",
   "hooks": {
     "SessionStart": [
       {
@@ -31,6 +31,22 @@
         ]
       }
     ],
+    "PreToolUse": [
+      {
+        "matcher": "Agent|Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-guard",
+              "brief"
+            ],
+            "timeout": 5
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Bash|Write|Edit|MultiEdit|NotebookEdit|WebFetch|Artifact|mcp__.*",
@@ -43,6 +59,20 @@
               "PostToolUse"
             ],
             "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-guard",
+              "unpushed"
+            ],
+            "timeout": 10
           }
         ]
       }

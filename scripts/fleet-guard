@@ -1,0 +1,118 @@
+#!/bin/sh
+# Fleet's opt-in workflow guards: fleet-guard <brief|unpushed>, with Claude Code's hook JSON on stdin.
+# Both are off unless the repo turns them on in .fleet/workflow.json:
+#
+#   "agents": { "enforceBriefs": true, "unpushedWork": true }
+#
+# Off (the default), they read nothing but that file, print nothing and exit 0. On, they print only when they
+# enforce something the repo opted into:
+#   brief     PreToolUse on Agent: denies a brief that sets no model or effort, branch work with no first-slice or
+#             check-in sentence, simulator work that doesn't lease a Fleet berth first (when this computer has a
+#             Fleet key), or a brief that starts simulators, servers or tunnels without saying to stop them.
+#             Forks are exempt. The deny names the missing sentence exactly.
+#   unpushed  PostToolUse, at most one check every 3 minutes per repo, main session only: tells the session about
+#             worktree commits that have sat on no remote for over 10 minutes. Quiet when there are none.
+# POSIX sh; never fails the tool call (any error exits 0 silently).
+MODE="${1:-}"
+HERE=$(dirname "$0")
+. "$HERE/lib.sh" 2>/dev/null || { cat >/dev/null; exit 0; }
+
+# The repo's settings file, from the session's project folder (its git root).
+DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
+ROOT=$(git -C "$DIR" rev-parse --show-toplevel 2>/dev/null) || ROOT="$DIR"
+SETTINGS="$ROOT/.fleet/workflow.json"
+
+# Is "$1": true anywhere in the settings file? The agents.* keys are unique names, so a flat match is enough.
+setting_on() { grep -Eq "\"$1\"[[:space:]]*:[[:space:]]*true" "$SETTINGS" 2>/dev/null; }
+setting_off() { grep -Eq "\"$1\"[[:space:]]*:[[:space:]]*false" "$SETTINGS" 2>/dev/null; }
+
+case "$MODE" in
+brief) setting_on enforceBriefs || { cat >/dev/null; exit 0; } ;;
+unpushed) setting_on unpushedWork || { cat >/dev/null; exit 0; } ;;
+*) cat >/dev/null; exit 0 ;;
+esac
+
+TMP="${TMPDIR:-/tmp}/fleet-guard.$$"
+cat >"$TMP" 2>/dev/null || { rm -f "$TMP"; exit 0; }
+trap 'rm -f "$TMP" "$TMP.p"' EXIT
+
+# Print a hook result: $1 event, $2 field ("permissionDecisionReason" with a deny, or "additionalContext"), text on stdin.
+emit() {
+  t=$(json_text 0)
+  [ -n "$t" ] || return 0
+  if [ "$2" = additionalContext ]; then
+    printf '{"hookSpecificOutput":{"hookEventName":"%s","additionalContext":"%s"}}\n' "$1" "$t"
+  else
+    printf '{"hookSpecificOutput":{"hookEventName":"%s","permissionDecision":"deny","permissionDecisionReason":"%s"}}\n' "$1" "$t"
+  fi
+}
+
+if [ "$MODE" = brief ]; then
+  [ "$(json_get "$TMP" subagent_type tool_input)" = fork ] && exit 0
+  json_get "$TMP" prompt tool_input >"$TMP.p"
+  has() { grep -Eiq "$1" "$TMP.p" 2>/dev/null; }
+  problems=""
+  add() { problems="${problems:+$problems
+}- $1"; }
+
+  [ -n "$(json_get "$TMP" model tool_input)" ] && [ -n "$(json_get "$TMP" effort tool_input)" ] ||
+    add 'Set `model` and `effort` by job (agents.models in .fleet/workflow.json; defaults: ui and judgment opus/high, small sonnet/medium, mechanical haiku/low).'
+
+  if has 'worktree|git push|git commit|gh pr create|open a (draft )?pr'; then
+    has 'first ([a-z]+ )?slice' && has 'within [0-9]+ min' ||
+      add 'Add the sentence: "Push the first working slice and SendMessage the main session its sha within 15 minutes."'
+    has 'every [0-9]+ min' ||
+      add "Add the sentence: \"Then check in every 10 minutes: push and SendMessage what's done, what's next and the sha.\""
+  fi
+
+  if has 'simulator|simctl|emulator' && [ -n "$(fleet_key)" ] && ! setting_off remoteSimulatorsFirst && ! has 'berth'; then
+    add 'Add the sentence: "Lease a Fleet berth for any simulator first; boot a local one only when no berth is free."'
+  fi
+
+  if has 'simulator|simctl|emulator|metro|expo start|dev server|wrangler dev|tunnel|(npm|pnpm|yarn|bun) (run )?dev|e2e:serve' &&
+    ! has 'stop (every|everything|anything|all|what|it|them|the|your)|shut (it |them |everything )?down'; then
+    add 'Add the sentence: "Stop every simulator, dev server, Metro and tunnel you start, and release every lease, before reporting."'
+  fi
+
+  [ -n "$problems" ] && printf 'Agent brief refused (agents.enforceBriefs in .fleet/workflow.json; see fleet-workflows § Agents). Fix the brief and launch it again:\n%s\n' "$problems" |
+    emit PreToolUse permissionDecisionReason
+  exit 0
+fi
+
+# unpushed: the main session only (a subagent's hooks carry agent_id), once every 3 minutes per repo.
+[ -n "$(json_top "$TMP" agent_id)" ] && exit 0
+COMMON=$(git -C "$DIR" rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || exit 0
+mkdir -p "$WF/state" 2>/dev/null || exit 0
+STAMP="$WF/state/unpushed-$(printf '%s' "$COMMON" | cksum | cut -d' ' -f1)"
+NOW=$(date +%s)
+LAST=$(cat "$STAMP" 2>/dev/null)
+case "$LAST" in '' | *[!0-9]*) LAST=0 ;; esac
+[ $((NOW - LAST)) -lt 180 ] && exit 0
+printf '%s\n' "$NOW" >"$STAMP" 2>/dev/null
+
+found=""
+git -C "$DIR" worktree list --porcelain 2>/dev/null | awk '
+  /^worktree / { p = substr($0, 10); b = ""; l = 0 }
+  /^branch refs\/heads\// { b = substr($0, 19) }
+  /^locked/ { l = 1 }
+  /^$/ { if (p != "" && b != "" && !l) print p "\t" b; p = "" }
+  END { if (p != "" && b != "" && !l) print p "\t" b }' >"$TMP.p"
+while IFS='	' read -r wt br; do
+  head=$(git -C "$wt" log -1 --format=%ct 2>/dev/null) || continue
+  case "$head" in '' | *[!0-9]*) continue ;; esac
+  age=$((NOW - head))
+  # Newest commit 10 minutes to 6 hours old: settled work, not something mid-edit or long abandoned.
+  [ "$age" -lt 600 ] || [ "$age" -gt 21600 ] && continue
+  commits=$(git -C "$wt" log --format='%h %ct %s' HEAD --not --remotes 2>/dev/null)
+  [ -n "$commits" ] || continue
+  n=$(printf '%s\n' "$commits" | wc -l | tr -d ' ')
+  newest=$(printf '%s\n' "$commits" | sed -n 1p | cut -c1-100)
+  oldest=$(printf '%s\n' "$commits" | sed -n '$p' | cut -d' ' -f2)
+  mins=$(((NOW - oldest) / 60))
+  found="$found
+- $wt ($br): $n unpushed, oldest $mins min, newest $(printf '%s' "$newest" | sed 's/ [0-9]* / /')"
+done <"$TMP.p"
+
+[ -n "$found" ] && printf 'Finished work is sitting on no remote (agents.unpushedWork in .fleet/workflow.json). If the user is waiting on any of it, push or ship it now by its sha (worktrees share commits) instead of waiting for the agent:%s\n' "$found" |
+  emit PostToolUse additionalContext
+exit 0
