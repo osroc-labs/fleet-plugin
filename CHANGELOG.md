@@ -2,6 +2,11 @@
 
 One line per release of the `fleet` plugin, newest first, with the osroc-labs/fleet issues it closes. Update with `claude plugin marketplace update osroc && claude plugin update fleet@osroc`, then start a new session. Server-side changes (new MCP tools, dashboard) go live on fleet.osroc.io without a plugin update; a new session picks up new tools.
 
+## 0.8.14
+- Long calls never hang: `run_flow`, `boot`, `install_app`, `record_stop` and `launch_app` (with an update wait) answer within 45 s with "Still running" and an op id; `op_result` returns the result. A same-op-id retry returns the first result instead of re-running. `await_decision` waits at most 45 s per call (#21).
+- Plain-word device errors, a pruned `describe_ui` (`raw: true` for the full tree), and an "out of date" note for old runners (#23).
+- Pick the iOS version per lease (`runtime: newest | previous | beta | 26.5`); `launch_app` says which EAS update is running and whether the app crashed, with the crash report (#26, #27). Needs runner 0.8.0 (`fleet runner update`).
+
 ## 0.8.13
 - Fix: session logging dropped batches whenever a subagent finished (and on PR, issue and artifact links). macOS's /bin/sh split a `{…}` literal into two arguments, so the event was invalid JSON and the server refused the whole batch. Every event is now checked, and a bad one is skipped and logged instead of losing the batch.
 
