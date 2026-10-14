@@ -152,10 +152,14 @@ Stop | SubagentStop)
   raw=$(raw_last_message)
   tpe=$(json_get "$IN" transcript_path | json_text 0)
   if [ "$EVENT" = Stop ]; then
+    # Claude is done: a pending "waiting on you" is over (the turn's event clears it on the server too).
+    rm -f "$ST.waiting"
     enqueue "{\"t\":\"turn\",\"crew\":\"\",\"tp\":\"$tpe\",\"raw\":\"$raw\"}"
   else
     crew=$(json_get "$IN" agent_type | sed 's/[^A-Za-z0-9_.:-]//g' | head -c 40)
-    enqueue "{\"t\":\"turn\",\"crew\":\"${crew:-crew}\",\"tp\":\"\",\"raw\":\"$raw\"}"
+    aid=$(json_get "$IN" agent_id | sed 's/[^A-Za-z0-9_-]//g' | head -c 64)
+    [ -n "$aid" ] && aid="@$aid"
+    enqueue "{\"t\":\"turn\",\"crew\":\"${crew:-crew}$aid\",\"tp\":\"\",\"raw\":\"$raw\"}"
   fi
   spawn_sender
   ;;
