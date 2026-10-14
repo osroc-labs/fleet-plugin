@@ -1,6 +1,5 @@
 ---
 description: How to use Fleet, in plain words, with examples of the everyday workflows. Start here.
-disable-model-invocation: true
 allowed-tools: Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-login" check)
 ---
 
@@ -96,5 +95,5 @@ Merges and deploys, only after your yes, then checks production. Apps and server
 - **Say "always" or "never" and it sticks:** Claude writes the rule into your repo with the date and your words, not just its memory.
 - **Nothing ships without your yes.** Claude asks in your Inbox or in chat before anything goes to production.
 - **On your phone?** The dashboard works there too: answer questions and pick options from anywhere.
-- **Updating Fleet:** in a terminal, run `claude plugin marketplace update osroc` and then `claude plugin update fleet@osroc`, then start a new session.
+- **Updating Fleet:** in a terminal, run `claude plugin marketplace update osroc` and then `claude plugin update fleet@osroc`, then start a new session. What changed in each version: `CHANGELOG.md` in the plugin (or ask Claude "what changed in Fleet since 0.8.1?").
 - **Something looks off?** `/fleet:status` shows whether you're signed in and your Macs are online.
