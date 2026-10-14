@@ -3,7 +3,7 @@
 One line per release of the `fleet` plugin, newest first, with the osroc-labs/fleet issues it closes. Update with `claude plugin marketplace update osroc && claude plugin update fleet@osroc`, then start a new session. Server-side changes (new MCP tools, dashboard) go live on fleet.osroc.io without a plugin update; a new session picks up new tools.
 
 ## Unreleased
-- Less context per session: one-line skill and command descriptions (about 1,500 to 770 tokens), and the MCP tool descriptions and server instructions cut by about 44% (server side, no plugin update needed); the detail moved into the skills (berths: leases, sticky berths, Metro tunnels, Maestro flows).
+- Less context per session: one-line skill and command descriptions (about 1,410 to 690 tokens loaded each session), and the MCP tools list cut from about 14,300 to 7,600 tokens (server side, no plugin update needed); the detail moved into the skills (berths: leases, sticky berths, Metro tunnels, Maestro flows).
 - `fleet-guard` costs almost nothing when off: a builtin-only check of `.fleet/workflow.json` before it loads anything, so the after-every-tool hook no longer runs git or grep (about 17 ms to 4 ms a call). On, it behaves exactly as before.
 - GitHub integration removed (the Quartermaster app, orders from ⚓ set sail and /sail, Ship's log comments and checks on issues and PRs): `/fleet:commission` is gone (projects come from sessions and Add project; pick the avatar on the project's page), the loop takes tasks from your Fleet Inbox, then GitHub issues via `gh`, then the roadmap, and builds record git with `voyage_log` `git`. The skills' own `gh` use (issues, PRs, the loop's board comment) is unchanged.
 
