@@ -96,4 +96,6 @@ Merges and deploys, only after your yes, then checks production. Apps and server
 - **Nothing ships without your yes.** Claude asks in your Inbox or in chat before anything goes to production.
 - **On your phone?** The dashboard works there too: answer questions and pick options from anywhere.
 - **Updating Fleet:** in a terminal, run `claude plugin marketplace update osroc` and then `claude plugin update fleet@osroc`, then start a new session. What changed in each version: `CHANGELOG.md` in the plugin (or ask Claude "what changed in Fleet since 0.8.1?").
+- **Test flows with a sign-in?** Save the test account on each Mac once (`fleet secrets set <owner/repo> <NAME>`); flows name it and the password never passes through Claude.
+- **No simulator build of your Expo app?** `fleet build-sim --profile preview` makes one on your Mac (a phone `.ipa` won't run on a simulator).
 - **Something looks off?** `/fleet:status` shows whether you're signed in and your Macs are online.

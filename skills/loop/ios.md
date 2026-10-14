@@ -30,11 +30,11 @@ Pick the fastest path that works:
 ```sh
 xcodebuild -workspace ios/<Name>.xcworkspace -scheme <Scheme> -configuration Release \
   -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
-  -derivedDataPath <scratch>/DerivedData ARCHS=arm64 ONLY_ACTIVE_ARCH=NO CODE_SIGNING_ALLOWED=NO build
+  -derivedDataPath <scratch>/DerivedData ARCHS=arm64 ONLY_ACTIVE_ARCH=NO CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO build
 ditto -c -k --sequesterRsrc --keepParent <scratch>/DerivedData/Build/Products/Release-iphonesimulator/<Name>.app <scratch>/app.zip
 ```
 
-(Native apps: `-project`/`-scheme` the same way; Debug is fine for them. Keep one DerivedData folder, shared by every lane, so rebuilds are incremental and nothing is duplicated. Use `ARCHS=x86_64` for an Intel Mac. No Xcode here? An EAS build with an `"ios": { "simulator": true }` profile gives a `.app` too.)
+(Ad hoc signed, not unsigned: an unsigned build can't use the keychain, so sign-in fails. In an Expo project, `fleet build-sim --profile <preview profile> --lease <lease id>` does all of A: prebuild when there's no `ios/`, this build, the zip, the upload and the install, with the profile's channel header and `EXPO_PUBLIC_*` env. Native apps: `-project`/`-scheme` the same way; Debug is fine for them. Keep one DerivedData folder, shared by every lane, so rebuilds are incremental and nothing is duplicated. Use `ARCHS=x86_64` for an Intel Mac. No Xcode here? An EAS build with an `"ios": { "simulator": true }` profile gives a `.app` too: `install_app` with its `url`. A store or ad hoc `.ipa` never runs on a simulator; `install_app` refuses it.)
 
 Then `upload_url` with `ext: "zip"`, `curl -sS -T <scratch>/app.zip '<uploadUrl>'`, `install_app` with the `blob_key`, and `launch_app` with the bundle id. Keep the `blob_key`: until native code or JavaScript changes, reinstall it next round instead of rebuilding (uploads last a day).
 
@@ -63,13 +63,14 @@ A few minutes proving the change works at all: not the test suite.
 - Walk the review's test steps end to end: open it, use each control, close it, open it again. Then the states it touches (empty, error, long text, keyboard up, dark mode with `set_appearance`).
 - **Every variant, not a sample:** if the change touches a component with many variants, look at each one.
 - Watch Metro's output (path B) or the app for red screens, warnings and crashes.
+- **The repo's Maestro flows** (`run_flow`): signed-in flows take the account by name, `secrets: [<verify.smoke.envVars names>]`, filled in on the runner Mac; never read a password to pass as `env`. A missing name: say which, and that the user runs `fleet secrets set <owner/repo> <NAME>` once on that Mac (or `fleet secrets import <owner/repo> <the project's .env> <NAMES>`). Or use a sticky berth signed in once by hand.
 - Fix and repeat until it works. The simulator can't show haptics, real performance or 120 Hz: say so in the review note.
 
 ## 5. Test what users run: the release replica
 
 The dev client is for building, not sign-off: native interactions (context menus, previews, gestures, anything from a native module) can work in Debug and fail in Release. When the repo ships over-the-air updates (`commands.deployPreview`), smoke the **published preview** itself before the user is told:
 
-- Keep one Release simulator build with the same native code as the users' build (its fingerprint matches), set to pull preview updates (`EXUpdatesRequestHeaders` → `expo-channel-name: preview` in `Expo.plist`). Rebuild it only when native code changes.
+- Keep one Release simulator build with the same native code as the users' build (its fingerprint matches), set to pull preview updates (`EXUpdatesRequestHeaders` → `expo-channel-name: preview` in `Expo.plist`; `fleet build-sim --profile preview` sets it). Rebuild it only when native code changes.
 - A fresh build's embedded update is newer than anything published, so it never loads one: set `commitTime` to `1` in `<App>.app/EXUpdates.bundle/app.manifest`, re-sign (`codesign --force --sign - --preserve-metadata=entitlements,identifier <App>.app`), then install.
 - Each round, after publishing: launch it twice about 15 s apart (the first downloads, the second runs it), check it runs the new update, and walk the steps again.
 - If the replica and the dev client disagree, the replica wins; note the difference in the repo's gotchas.
