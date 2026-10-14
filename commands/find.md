@@ -1,10 +1,14 @@
 ---
 description: Find past voyages (Claude Code sessions) and print the lines to resume them.
 argument-hint: "<words>"
-allowed-tools: Bash(grep -h *), Bash(cat *)
+allowed-tools: Bash(grep -h *), Bash(cat *), Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-login" *)
 ---
 
 Find Fleet voyages matching: "$ARGUMENTS"
+
+This computer's Fleet key: !`sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-login" check`
+
+0. If the line above says `Run /fleet:login first.`, reply with exactly that and stop.
 
 1. Call the fleet MCP `voyage_list` with `all: true`. Keep the voyages whose `goal`, `summary` or ship `repo` contain every word of the query (case-insensitive). With no query, keep the 10 most recent.
 2. For each match, find its Claude Code session id:

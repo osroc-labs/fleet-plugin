@@ -295,3 +295,50 @@ transcript_last_assistant() {
     }
     END { printf "%s", substr(last, 1, 4000) }'
 }
+
+# Set top-level string field $2 to $3 in the JSON file $1 (config.json), the way setup.sh merges its key: replace a
+# top-level "$2", else add it; every other field (server, runner, anything nested) is left exactly as it was. A missing
+# or empty file becomes {"$2":"$3"}. $3 must already be JSON-safe. Written 0600 through a temp file. Fails on bad JSON.
+config_set() {
+  _cf=$1 _name=$2 _val=$3 _tmp="$1.tmp.$$"
+  if [ -s "$_cf" ]; then
+    awk -v name="$_name" -v val="$_val" '
+      { s = (NR > 1) ? s "\n" $0 : $0 }
+      END {
+        n = length(s); depth = 0; i = 1; out = ""; done = 0; expect = 0
+        while (i <= n) {
+          c = substr(s, i, 1)
+          if (c == "\"") {
+            rest = substr(s, i + 1)
+            if (!match(rest, /^([^"\\]|\\.)*"/)) { out = out substr(s, i); break }
+            str = substr(rest, 1, RLENGTH - 1)
+            if (depth == 1 && expect && k == name && !done) { out = out "\"" val "\""; done = 1 }
+            else out = out "\"" str "\""
+            i += RLENGTH + 1
+            if (depth == 1 && !expect) {
+              after = substr(s, i)
+              if (match(after, /^[ \t\r\n]*:/)) { k = str; out = out substr(after, 1, RLENGTH); i += RLENGTH; expect = 1; continue }
+            }
+            expect = 0
+            continue
+          }
+          if (c == "{") { depth++; if (depth == 1) first = length(out) + 1 }
+          else if (c == "}" || c == "]") depth--
+          else if (c == "[") depth++
+          if (c != " " && c != "\t" && c != "\n" && c != "\r" && c != "\"") expect = (c == ":") ? expect : 0
+          out = out c
+          i++
+        }
+        if (!done) {
+          if (!first) exit 1
+          head = substr(out, 1, first); tail = substr(out, first + 1)
+          empty = (tail ~ /^[ \t\r\n]*}/)
+          out = head "\"" name "\":\"" val "\"" (empty ? "" : ",") tail
+        }
+        print out
+      }' "$_cf" >"$_tmp" || { rm -f "$_tmp"; return 1; }
+  else
+    printf '{"%s":"%s"}\n' "$_name" "$_val" >"$_tmp" || return 1
+  fi
+  chmod 600 "$_tmp" && mv -f "$_tmp" "$_cf"
+}

@@ -1,0 +1,147 @@
+#!/bin/sh
+# /fleet:login: sign this computer in to Fleet from inside Claude Code, with no key to copy.
+# Like an OAuth device login: Fleet hands out a code, you approve it on fleet.osroc.io/app/link (signed in with
+# Google), and this script collects the API key and saves it to ~/.fleet/config.json, where the hooks and the MCP
+# connection read it. POSIX sh and curl only.
+#
+#   fleet-login start   ask Fleet for a code, print it and the link, try to open the link; remembers the login
+#   fleet-login wait    poll until the code is approved (up to 10 minutes), then save the key
+#   fleet-login check   one line: whether this computer has a Fleet key
+#   fleet-login         start, then wait (from a terminal)
+#
+# FLEET_SERVER points it at another server; FLEET_NO_BROWSER=1 skips opening the link.
+HERE=$(dirname "$0")
+. "$HERE/lib.sh" 2>/dev/null || { echo "The Fleet plugin's files are missing; reinstall it with /plugin install fleet@osroc."; exit 1; }
+
+UA="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36 fleet-plugin/0.4.0"
+SERVER=$(fleet_server)
+PENDING="$FLEET_DIR/login.pending"
+SETUP_HINT="Get a key at $SERVER/app/keys, then in Terminal: curl -fsSL https://fleet.osroc.io/setup.sh | sh -s -- <key>"
+
+# POST JSON $2 to path $1 (through stdin, so a device code never shows in ps). Sets HTTP (000 when unreachable) and leaves the body in $BODY.
+BODY="$FLEET_DIR/login.resp.$$"
+post() {
+  rm -f "$BODY"
+  HTTP=$(printf "%s" "$2" | curl -sS -m 20 -o "$BODY" -w '%{http_code}' -X POST -A "$UA" -H 'content-type: application/json' --data-binary @- "$SERVER$1" 2>/dev/null)
+  case "$HTTP" in [0-9][0-9][0-9]) ;; *) HTTP=000 ;; esac
+}
+cleanup() { rm -f "$BODY"; }
+trap cleanup EXIT
+
+# A number field from $BODY.
+num() { sed -n "s/.*\"$1\"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p" "$BODY" 2>/dev/null | head -n 1; }
+
+# The code answer is well formed, and the link we'd open is on this server.
+well_formed() {
+  printf '%s' "$dc" | grep -Eq '^[0-9a-f]{64}$' || return 1
+  printf '%s' "$uc" | grep -Eq '^[A-Z]{4}-[0-9]{4}$' || return 1
+  [ "${uri#"$SERVER"/app/link}" != "$uri" ] || return 1
+  case "$uri" in *[!A-Za-z0-9:/?=._-]*) return 1 ;; esac
+  return 0
+}
+
+start() {
+  mkdir -p "$FLEET_DIR" && chmod 700 "$FLEET_DIR" 2>/dev/null
+  host=$(uname -n 2>/dev/null | sed 's/\.local$//' | tr -cd 'A-Za-z0-9._-' | cut -c 1-48)
+  post /api/device/code "{\"hostname\":\"$host\"}"
+  dc=$(json_get "$BODY" device_code)
+  uc=$(json_get "$BODY" user_code)
+  uri=$(json_get "$BODY" verification_uri_complete)
+  interval=$(num interval)
+  expires=$(num expires_in)
+  case "$HTTP" in
+  200)
+    # Only a well-formed answer from this server counts; the link we open must be on it.
+    if ! well_formed; then
+      echo "Fleet login isn't available yet; use setup.sh. $SETUP_HINT"
+      return 1
+    fi
+    ;;
+  000) echo "Couldn't reach $SERVER. Check the connection, then run /fleet:login again."; return 1 ;;
+  429) echo "Too many sign-in codes from this network just now. Wait ten minutes, then run /fleet:login again."; return 1 ;;
+  5??) echo "Fleet had a problem (HTTP $HTTP). Run /fleet:login again in a minute."; return 1 ;;
+  *) echo "Fleet login isn't available yet; use setup.sh. $SETUP_HINT"; return 1 ;;
+  esac
+  [ -n "$interval" ] && [ "$interval" -ge 1 ] && [ "$interval" -le 60 ] || interval=5
+  [ -n "$expires" ] && [ "$expires" -ge 30 ] && [ "$expires" -le 900 ] || expires=600
+  # The login in progress, for `wait`: 0600 under ~/.fleet, deleted when it ends.
+  printf '%s\n%s\n%s\n%s\n' "$dc" "$uc" "$interval" "$(($(date +%s) + expires - 5))" >"$PENDING" || { echo "Couldn't write $PENDING."; return 1; }
+  chmod 600 "$PENDING" 2>/dev/null
+  echo "Your Fleet code: $uc"
+  echo "Approve it here (sign in with Google if asked): $uri"
+  echo "Then wait for the approval with: sh \"$(cd "$HERE" && pwd)/fleet-login\" wait"
+  if [ "${FLEET_NO_BROWSER:-}" != 1 ] && [ -z "${SSH_CONNECTION:-}" ]; then
+    if [ "$(uname)" = Darwin ] && command -v open >/dev/null 2>&1; then
+      open "$uri" >/dev/null 2>&1 || true
+    elif command -v xdg-open >/dev/null 2>&1; then
+      (xdg-open "$uri" >/dev/null 2>&1 &) 2>/dev/null || true
+    fi
+  fi
+  return 0
+}
+
+wait_for_key() {
+  if [ ! -s "$PENDING" ]; then
+    echo "No Fleet sign-in is waiting. Run /fleet:login."
+    return 1
+  fi
+  { read -r dc; read -r uc; read -r interval; read -r deadline; } <"$PENDING"
+  case "$dc" in *[!0-9a-f]* | "") rm -f "$PENDING"; echo "No Fleet sign-in is waiting. Run /fleet:login."; return 1 ;; esac
+  case "$interval" in "" | *[!0-9]*) interval=5 ;; esac
+  case "$deadline" in "" | *[!0-9]*) deadline=0 ;; esac
+  while [ "$(date +%s)" -lt "$deadline" ]; do
+    sleep "$interval"
+    post /api/device/token "{\"device_code\":\"$dc\"}"
+    key=$(json_get "$BODY" key)
+    if [ "$HTTP" = 200 ] && printf '%s' "$key" | grep -Eq '^fk_[A-Za-z0-9_-]+$'; then
+      rm -f "$PENDING"
+      save_key "$key"
+      return $?
+    fi
+    case "$(json_get "$BODY" error)" in
+    authorization_pending) ;;
+    slow_down) interval=$((interval + 5)) ;;
+    expired)
+      rm -f "$PENDING"
+      echo "That code expired. Run /fleet:login again for a fresh one."
+      return 1
+      ;;
+    denied)
+      rm -f "$PENDING"
+      echo "That sign-in was cancelled on the dashboard. Run /fleet:login to try again."
+      return 1
+      ;;
+    *)
+      # Unreachable, a hiccup or a server that doesn't know device login: keep trying until the code runs out,
+      # except a server that has no such endpoint at all.
+      case "$HTTP" in 401 | 404 | 405) rm -f "$PENDING"; echo "Fleet login isn't available yet; use setup.sh. $SETUP_HINT"; return 1 ;; esac
+      ;;
+    esac
+  done
+  rm -f "$PENDING"
+  echo "Nobody approved code $uc in time. Run /fleet:login again for a fresh one."
+  return 1
+}
+
+save_key() {
+  mkdir -p "$FLEET_DIR" && chmod 700 "$FLEET_DIR" 2>/dev/null
+  # A new config remembers the server it was made on; an existing one keeps its own, unless FLEET_SERVER says otherwise.
+  if [ ! -s "$CONFIG" ] || [ -n "${FLEET_SERVER:-}" ]; then
+    case "$SERVER" in *[!A-Za-z0-9:/._-]*) ;; *) config_set "$CONFIG" server "$SERVER" || { echo "Couldn't read $CONFIG as JSON; left it alone. Fix it or move it aside, then run /fleet:login again."; return 1; } ;; esac
+  fi
+  config_set "$CONFIG" key "$1" || { echo "Couldn't read $CONFIG as JSON; left it alone. Fix it or move it aside, then run /fleet:login again."; return 1; }
+  echo "Signed in. New sessions will appear on your dashboard."
+  echo "Fleet's tools (MCP) connect in new sessions; in this one, run /mcp and reconnect fleet."
+  if [ -n "${FLEET_KEY:-}" ] && [ "$FLEET_KEY" != "$1" ]; then
+    echo "Note: FLEET_KEY in your environment overrides the saved key. Remove its export line from your shell's rc file."
+  fi
+  return 0
+}
+
+case "${1:-}" in
+start) start; exit 0 ;; # always 0: the slash command shows its line either way
+wait) wait_for_key ;;
+check) if [ -n "$(fleet_key)" ]; then echo "Fleet key: present"; else echo "Run /fleet:login first."; fi ;;
+"") start && wait_for_key ;;
+*) echo "usage: fleet-login [start|wait|check]"; exit 1 ;;
+esac
