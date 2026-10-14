@@ -1,6 +1,6 @@
 ---
 name: ship
-description: Merge a reviewed PR and deploy it to production with the repo's own documented deploy command, only after the user's explicit yes, then verify production and close the issues. The deploy command is asked once and saved in .fleet/workflow.json. Use when the user runs /fleet:ship or says to ship, merge and deploy, or release a specific change. If the repo has its own deploy skill, use that instead.
+description: Merge a reviewed PR and deploy it to production with the repo's own documented deploy command (or its ordered release targets, with environment, native-build and changelog guards), only after the user's explicit yes, then verify production and close the issues. The deploy command is asked once and saved in .fleet/workflow.json. Use when the user runs /fleet:ship or says to ship, merge and deploy, or release a specific change. If the repo has its own deploy skill, use that instead.
 argument-hint: "<PR number or branch>"
 allowed-tools: Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-repo"), Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-repo" *)
 ---
@@ -24,6 +24,8 @@ Otherwise ask one question and stop: "Ship #<n> (<title>) to production with `<d
 
 `sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-repo"`. If the settings have `commands.deploy` (or `"deploy": "merge"` for repos whose CI deploys on merge), use it. If not, find the documented way: the repo's docs (README, CLAUDE.md, docs/deploy*), a `deploy` script in package.json or the Makefile, its CI workflows (a deploy job on push to main means merging deploys), and the tooling config (wrangler, fly, vercel, netlify, firebase, eas). Show the user what you found in one line, ask them to confirm, and save it to `.fleet/workflow.json` (with `productionUrl` and `healthUrl` if you found them). Ask this together with the yes in § 1: one question, not two.
 
+**More than one thing to release** (a server and an over-the-air mobile update, a web app and an API): save them as `ship.targets`, in the order they go, server before the client that calls it. Each is `{ "name", "command", "check", "overTheAir" }`: `check` (a `curl` of the health route, the provider's list showing the sha) must pass before the next target starts; `overTheAir: true` marks a target that publishes an update to installed apps. `commands.deploy` stays the shorthand for one target. While you're reading the docs, note the guards they describe (a command that checks which host a bundle calls, a fingerprint or runtime-version compare, a changelog file) and offer them in the same block as `ship.environmentCheck`, `ship.nativeCheck` and `ship.changelog` (shared rules § The repo).
+
 Never guess a deploy command and run it.
 
 ## 3. Ready?
@@ -32,6 +34,8 @@ Never guess a deploy command and run it.
 - **Latest main first:** `git fetch origin`, merge `origin/<main>` into the branch; if it moved, rerun the gates on the merged branch and push.
 - Every gate in the settings passes on the branch. No migration edits one that already shipped.
 - For iOS changes: they ran on a simulator (`fleet:loop ios`), the whole changed path tapped through, before production.
+- **The changelog** (`ship.changelog`): a change people can see gets an entry in `ship.changelog.path`, at the top, dated today, in plain words they'd be glad to read (what they can now do, never code or design terms, never "fixed a bug in…"). Internal changes (tests, CI, docs, plumbing) get none. A new screen, flow, gesture or control also gets its short clip when `ship.changelog.clip` is set (the path it goes to): recorded from this branch's build the repo's documented way, showing only that feature. Add them on the branch before merging.
+- **The native boundary** (`ship.nativeCheck`, when any target is `overTheAir`): run it on the branch, current with main. It exits non-zero when the change can't reach installed apps over the air (a native module, a config plugin, an icon, a permission). Then nothing goes over the air for this change: say why in one line and ask one question: "#<n> needs a new store build (<why>). Merging it holds over-the-air updates for later changes until that build is installed. Merge, ship the other targets, and start the store build (`commands.storeBuild`)?" A store build reaches every tester, so it needs this yes even with `greenShips`. From `fleet:loop`: ask it as a `voyage_log` `question` on the task voyage and return; the loop keeps working on tasks that can ship.
 
 ## 4. Merge, then deploy
 
@@ -49,10 +53,12 @@ gh pr merge <n> --merge --delete-branch           # the repo's merge style if it
   <install command> && <deploy command>
   ```
   Remove the worktree afterwards (`git worktree remove <scratch>/deploy`).
-- **Mobile releases** (a store build, an over-the-air update to production) follow the repo's docs the same way, from main, with the same yes.
+- **Several targets** (`ship.targets`): every one from that same clean worktree, so all platforms ship the same code, in order. After each, run its `check` and read the result; a failed command or check stops the rest (the targets already out stay, and the report says which didn't go). Skip the `overTheAir` targets when the native check failed (§ 3).
+- **The environment guard** (`ship.environmentCheck`): run it in the deploy worktree with `production` as its argument after each `overTheAir` target, else after the last target (or the single deploy). It proves what was just built calls production and not a preview or staging host (e.g. `grep -a -c` for each host in the exported bundle). When the repo can build without publishing, run it before the publish too. Failed: stop the remaining targets, run `commands.restoreProduction` at once when it's set (republishing the last good update), and tell the user first in the report.
+- **Mobile releases** (a store build, an over-the-air update to production) follow the repo's docs the same way, from main, with the same yes; a store build after a native-check failure needs its own yes (§ 3).
 - Never push to main directly, never force-push, and never skip hooks or checks to get a deploy through.
 
-If the deploy fails, nothing shipped: read the log, say so plainly, fix forward on a branch.
+If the deploy fails, nothing shipped (or only the targets before it): read the log, say so plainly, fix forward on a branch. **Broken in production after a deploy that succeeded: fix forward** on a branch through the same chain, never roll back or revert main. The one exception is a build pointing at the wrong environment: `commands.restoreProduction` puts the last good one back when the repo documents it.
 
 ## 5. Verify and close out
 
@@ -62,6 +68,6 @@ If the deploy fails, nothing shipped: read the log, say so plainly, fix forward 
 
 ## Report
 
-`Production = <sha> (#<n>)`, what shipped in plain words, the verify result, then the links (production URL for each change, the PR).
+`Production = <sha> (#<n>)`, and with `ship.targets` one line per target: `<name> = <sha or id>` (the update or build id for a mobile target, or why it didn't go: native check, a failed check). Then what shipped in plain words, the changelog entry if one was added, the verify result, then the links (production URL for each change, the PR).
 
 **Next:** nothing; it's shipped. If production verify fails → `fleet:triage`.

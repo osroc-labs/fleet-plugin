@@ -166,6 +166,23 @@ It prints the saved settings (if any) and what the repo suggests: main branch, p
     "agentLimit": { "beforeHour": 17, "tz": "America/Denver", "before": 2, "after": 5 },
     "localSimulators": 3
   },
+  "verify": {
+    "smoke": {
+      "production": { "signIn": "curl -sS -c <jar> -X POST https://example.com/api/auth/sign-in -d …", "checks": ["GET /api/me"], "envVars": ["PROD_SMOKE_EMAIL", "PROD_SMOKE_PASSWORD"] },
+      "preview": null
+    },
+    "absentInProduction": ["Staging", "staging.example.com"],
+    "quarantine": { "tag": "@quarantine", "issueLabel": "flaky" }
+  },
+  "ship": {
+    "targets": [
+      { "name": "server", "command": "pnpm run deploy", "check": "curl -fsS https://example.com/api/health" },
+      { "name": "ios update", "command": "npx eas-cli update --channel production …", "check": "npx eas-cli update:list --branch production --limit 1", "overTheAir": true }
+    ],
+    "environmentCheck": "sh scripts/check-bundle-env.sh",
+    "nativeCheck": "npx eas-cli fingerprint:compare --build-id <id> --non-interactive",
+    "changelog": { "path": "CHANGELOG.md", "required": "user-visible", "clip": null }
+  },
   "greenShips": false,
   "confirmedAt": "2026-01-01"
 }
@@ -181,6 +198,13 @@ It prints the saved settings (if any) and what the repo suggests: main branch, p
 - `loop.agentLimit` caps agents by the hour: `before` while the hour in `tz` (an IANA zone) is below `beforeHour` (0–23), else `after`. It counts every agent the loop runs, and the loop runs the lowest of it, `maxLanes` and what the Macs have free. `null`: no cap but those.
 - `loop.localSimulators` is the most simulators booted at once on this Mac (default 3); Fleet berths don't count.
 - `greenShips: true` means the user's **Ship it** on the Fleet dashboard is also their yes for production. Only set it when the user says so. Default `false`: Ship it approves the change, and you still ask once before production. With it on, `fleet:loop` merges and ships each task on its green, like a sprint where the user's device test is the sign-off.
+- `verify.smoke.production` (and `.preview`): a signed-in, read-only check after a deploy (`fleet:verify` § 3). `signIn` is a command or curl recipe, `checks` the read-only calls (`"GET /api/me"`; a non-`GET` listed here is declared read-only), `envVars` the **names** of the variables holding the smoke account's credentials, never the values. The account never writes.
+- `verify.absentInProduction`: strings only a preview build shows (a badge, the staging host); production verify checks they're absent.
+- `verify.quarantine`: `tag` marks a known flake (the runner skips it unless its env flag is set) and `issueLabel` labels its issue. A quarantined failure is reported with its issue and doesn't fail the verdict.
+- `ship.targets`: an ordered list of `{ name, command, check, overTheAir }`, run from one clean checkout of main; each `check` must pass before the next target starts. `commands.deploy` is the one-target shorthand.
+- `ship.environmentCheck`: a command run with `production` (or `preview`) as its argument that exits non-zero when the built artifacts call the wrong environment. A production failure stops the ship and runs `commands.restoreProduction` (the repo's documented way to put the last good build back) when set; that is the only rollback, everything else is fixed forward.
+- `ship.nativeCheck`: a command that exits non-zero when a change can't reach installed apps over the air. Then no `overTheAir` target runs for it, and a store build (`commands.storeBuild`) waits for the user's yes.
+- `ship.changelog`: `path` of the user-facing changelog, `required: "user-visible"` (an entry for anything people can see, none for internal changes), `clip` (where a short recording of a new screen, flow, gesture or control goes, or `null`).
 - Leave anything unknown `null`. Never put a secret in this file.
 
 **Discover, then confirm once.** When the file is missing, or a workflow needs a key it lacks: fill it from `fleet-repo`, the repo's docs and CI config, show the user the few values that matter for this step in one short block ("Tests: `pnpm test` · Deploy: `pnpm run deploy` · Production: https://… Right?"), and write the file once they confirm (or correct it). Don't ask about keys the current workflow doesn't use. Suggest committing it (it's shared with the team) on the next branch you open; it holds no secrets.
