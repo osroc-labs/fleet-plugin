@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "fleet": {
+      "type": "http",
+      "url": "https://fleet.osroc.io/mcp",
+      "headers": { "Authorization": "Bearer ${FLEET_KEY:-}" },
+      "headersHelper": "sh \"${CLAUDE_PLUGIN_ROOT}/scripts/fleet-headers\""
+    }
+  }
+}

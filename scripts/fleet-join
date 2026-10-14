@@ -1,0 +1,65 @@
+#!/bin/sh
+# Helper for /fleet:join (you shouldn't need it: the hooks register every session on their own).
+#   fleet-join status [session_id]          what this session's voyage is, or the git facts to open one
+#   fleet-join link <session_id> <voyage_id> links a voyage opened by hand, so the hooks keep logging to it
+. "$(dirname "$0")/lib.sh" 2>/dev/null || exit 0
+cmd=${1:-status}
+sid=${2:-}
+case "$sid" in "" | *'{'* | *'$'*) sid=${CLAUDE_CODE_SESSION_ID:-} ;; esac
+case "$sid" in "" | *[!A-Za-z0-9_-]*) echo "No session id: run this inside Claude Code."; exit 0 ;; esac
+mkdir -p "$WF/sessions" "$WF/state" 2>/dev/null
+ST="$WF/state/$sid"
+
+case "$cmd" in
+status)
+  if [ -z "$(fleet_key)" ]; then
+    echo "No Fleet key on this machine: run setup.sh first (see the fleet-plugin README)."
+    exit 0
+  fi
+  # The hooks may have queued this session a moment ago: give the sender a few seconds.
+  if [ -f "$ST.opened" ] && [ ! -s "$WF/sessions/$sid" ]; then
+    n=0
+    while [ $n -lt 8 ] && [ ! -s "$WF/sessions/$sid" ]; do sleep 1; n=$((n + 1)); done
+  fi
+  v=$(sed -n 1p "$WF/sessions/$sid" 2>/dev/null)
+  if [ -n "$v" ]; then
+    echo "session: $sid"
+    echo "voyage: $v (already logging this session)"
+    exit 0
+  fi
+  echo "session: $sid"
+  echo "voyage: none"
+  if git rev-parse --git-dir >/dev/null 2>&1; then
+    echo "repo: $(git remote get-url origin 2>/dev/null | sed -E 's#://[^/@]*@#://#')"
+    echo "branch: $(git rev-parse --abbrev-ref HEAD 2>/dev/null)"
+    echo "sha: $(git rev-parse HEAD 2>/dev/null)"
+    if git rev-parse --abbrev-ref '@{u}' >/dev/null 2>&1 && [ "$(git rev-list --count '@{u}..HEAD' 2>/dev/null)" = 0 ]; then
+      echo "pushed: true"
+    else
+      echo "pushed: false"
+    fi
+    echo "host: $(uname -n | sed 's/\.local$//')"
+  else
+    echo "repo: (not a git repo)"
+  fi
+  ;;
+link)
+  v=${3:-}
+  case "$v" in v_*) ;; *) echo "usage: fleet-join link <session_id> <voyage_id>"; exit 0 ;; esac
+  case "$v" in *[!A-Za-z0-9_-]*) echo "bad voyage id"; exit 0 ;; esac
+  cur=$(sed -n 1p "$WF/sessions/$sid" 2>/dev/null)
+  if [ -n "$cur" ] && [ "$cur" != "$v" ]; then
+    echo "This session already logs to $cur; kept it."
+    exit 0
+  fi
+  printf '%s\n' "$v" >"$WF/sessions/$sid"
+  printf '%s\t%s\t%s\n' "$v" "$(pwd)" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >>"$WF/sessions/$sid.voyages"
+  printf '%s\n' "$v" >"$WF/sessions/$sid.last"
+  : >"$ST.opened"
+  : >"$ST.told"
+  : >"$ST.backfilled"
+  echo "Linked: session $sid now logs to voyage $v."
+  ;;
+*) echo "usage: fleet-join status|link" ;;
+esac
+exit 0

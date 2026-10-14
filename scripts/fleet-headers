@@ -1,0 +1,11 @@
+#!/bin/sh
+# The Fleet MCP server's headersHelper: prints {"Authorization":"Bearer <key>"} with the key from
+# FLEET_KEY or ~/.fleet/config.json. Claude Code strips credential-named variables from a plugin
+# helper's environment, so the file is the usual source. No key: {} (the static header stays).
+. "$(dirname "$0")/lib.sh" 2>/dev/null || { echo '{}'; exit 0; }
+k=$(fleet_key | sed 's/[^A-Za-z0-9_-]//g')
+if [ -n "$k" ]; then
+  printf '{"Authorization":"Bearer %s"}\n' "$k"
+else
+  echo '{}'
+fi

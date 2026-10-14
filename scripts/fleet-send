@@ -1,0 +1,259 @@
+#!/bin/sh
+# Fleet wayfinding sender: runs detached, one at a time (a mkdir lock), and sends the queued
+# events to the live voyage API. Each queue file is moved to work/ before sending, so hooks keep
+# appending to a fresh one. A line's opId is <session>-<n>, n counting every line ever sent for
+# that session, so a retry replays on the server instead of logging twice.
+HERE=$(dirname "$0")
+. "$HERE/lib.sh" 2>/dev/null || exit 0
+
+LOCK="$WF/send.lock"
+UA="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36 fleet-plugin/0.1"
+mkdir -p "$WF/queue" "$WF/work" "$WF/state" "$WF/sessions" "$WF/tmp" 2>/dev/null || exit 0
+
+lock() {
+  if mkdir "$LOCK" 2>/dev/null; then
+    echo $$ >"$LOCK/pid"
+    return 0
+  fi
+  pid=$(cat "$LOCK/pid" 2>/dev/null)
+  if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then return 1; fi
+  # A stale lock (its sender died): take it over.
+  rm -rf "$LOCK" 2>/dev/null
+  mkdir "$LOCK" 2>/dev/null && echo $$ >"$LOCK/pid"
+}
+unlock() { rm -rf "$LOCK" 2>/dev/null; }
+
+KEY=$(fleet_key)
+[ -n "$KEY" ] || exit 0
+SERVER=$(fleet_server)
+HOST=$(uname -n 2>/dev/null | sed 's/\.local$//' | json_text 64)
+
+# POST $1 (path) with the body in file $2. Sets CODE and leaves the response in $RESP.
+RESP="$WF/tmp/resp.$$"
+post() {
+  CODE=$(printf 'header = "Authorization: Bearer %s"\n' "$KEY" |
+    curl -sS -K - -m 20 -o "$RESP" -w '%{http_code}' -X POST \
+      -A "$UA" -H 'content-type: application/json' \
+      --data-binary "@$2" "$SERVER$1" 2>>"$WF/log")
+  [ -n "$CODE" ] || CODE=000
+}
+
+# Unescape a JSON string body (as we wrote it) back to text, for a path.
+unjson() { printf '%s' "$1" | sed -e 's/\\"/"/g' -e 's/\\\\/\\/g'; }
+
+# Open a voyage for session $1 from an open line ($2), opId $3. A session already running when the
+# plugin was installed gets its earlier prompts backfilled from the transcript, once.
+open_voyage() {
+  sid=$1 line=$2 op=$3
+  cwd_e=$(printf '%s' "$line" | sed -n 's/^{"t":"open","cwd":"\(.*\)","tp":".*","tn":[0-9]*,"title":".*"}$/\1/p')
+  tp=$(unjson "$(printf '%s' "$line" | sed -n 's/^{"t":"open","cwd":".*","tp":"\(.*\)","tn":[0-9]*,"title":".*"}$/\1/p')")
+  tn=$(printf '%s' "$line" | sed -n 's/^{"t":"open",.*,"tn":\([0-9]*\),"title":".*"}$/\1/p')
+  title_e=$(printf '%s' "$line" | sed -n 's/^{"t":"open",.*,"tn":[0-9]*,"title":"\(.*\)"}$/\1/p')
+  dir=$(unjson "$cwd_e")
+  BF="$WF/tmp/backfill.$$"
+  : >"$BF"
+  [ -f "$WF/state/$sid.backfilled" ] || transcript_prompts "$tp" "${tn:-0}" >"$BF"
+  # The transcript may already hold the prompt that registered us; that one is logged on its own.
+  if [ -n "$title_e" ] && [ -s "$BF" ]; then
+    lastt=$(sed -n '$p' "$BF" | tr '\001' '\n' | redact | tr '\n' ' ' | json_text 80)
+    [ "$lastt" = "$title_e" ] && sed -i.bak '$d' "$BF" && rm -f "$BF.bak"
+  fi
+  # A session that ran before the hooks is named for its first prompt.
+  if [ -s "$BF" ]; then
+    title_e=$(sed -n 1p "$BF" | tr '\001' '\n' | redact | tr '\n' ' ' | json_text 80)
+  fi
+  [ -n "$title_e" ] || title_e="(new session)"
+  remote="" branch="" sha="" pushed=false
+  if [ -d "$dir" ] && git -C "$dir" rev-parse --git-dir >/dev/null 2>&1; then
+    remote=$(git -C "$dir" remote get-url origin 2>/dev/null | sed -E 's#://[^/@]*@#://#')
+    branch=$(git -C "$dir" rev-parse --abbrev-ref HEAD 2>/dev/null)
+    sha=$(git -C "$dir" rev-parse HEAD 2>/dev/null)
+    if git -C "$dir" rev-parse --abbrev-ref '@{u}' >/dev/null 2>&1 &&
+      [ "$(git -C "$dir" rev-list --count '@{u}..HEAD' 2>/dev/null)" = "0" ]; then pushed=true; fi
+  fi
+  if [ -n "$remote" ]; then
+    name=$(printf '%s' "$remote" | sed -E 's#/+$##; s#\.git$##; s#.*[/:]##')
+  else
+    name=$(basename "$dir" 2>/dev/null)
+  fi
+  [ -n "$name" ] || name="session"
+  label="$branch"
+  [ "$label" = "HEAD" ] || [ -z "$label" ] && label="detached"
+  [ -z "$sha" ] && label="no git"
+  goal="$(printf '%s · %s' "$name" "$label" | json_text 200) · $title_e"
+  gitj=""
+  case "$branch" in HEAD | "" | *[!A-Za-z0-9._/-]*) b="" ;; *) b="\"branch\":\"$branch\"," ;; esac
+  case "$sha" in *[!0-9a-f]* | "") s="" ;; *) s="\"sha\":\"$sha\"," ;; esac
+  [ -n "$sha" ] && gitj=",\"git\":{$b$s\"pushed\":$pushed,\"host\":\"$HOST\"}"
+  repoj=""
+  [ -n "$remote" ] && repoj=",\"repo\":\"$(printf '%s' "$remote" | json_text 300)\""
+  B="$WF/tmp/body.$$"
+  printf '{"goal":"%s"%s%s,"opId":"%s"}' "$goal" "$repoj" "$gitj" "$op" >"$B"
+  post /api/voyages "$B"
+  if [ "$CODE" = 400 ]; then
+    # A remote or branch the server won't take: open it plain rather than not at all.
+    flog "open $sid: 400 $(head -c 300 "$RESP"); retrying without repo and git"
+    printf '{"goal":"%s","opId":"%s-plain"}' "$goal" "$op" >"$B"
+    post /api/voyages "$B"
+  fi
+  case "$CODE" in 2*) ;; *) rm -f "$B" "$BF"; return 1 ;; esac
+  vid=$(awk 'match($0, /"id":"v_[A-Za-z0-9_-]+"/) { print substr($0, RSTART + 6, RLENGTH - 7); exit }' "$RESP")
+  [ -n "$vid" ] || { flog "open $sid: no voyage id in $(head -c 200 "$RESP")"; CODE=500; rm -f "$B" "$BF"; return 1; }
+  prev=$(sed -n 1p "$WF/sessions/$sid.last" 2>/dev/null)
+  printf '%s\n' "$vid" >"$WF/sessions/$sid"
+  printf '%s\t%s\t%s\n' "$vid" "$dir" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >>"$WF/sessions/$sid.voyages"
+  printf '%s\n' "$vid" >"$WF/sessions/$sid.last"
+  # The first entry: how to get back to this session.
+  note="Session $sid on $HOST. Resume: cd $(printf '%s' "$dir" | json_text 300) && claude --resume $sid"
+  [ -n "$prev" ] && note="$note (continues voyage $prev)"
+  printf '{"kind":"note","text":"%s","opId":"%s-s"}' "$note" "$op" >"$B"
+  post "/api/voyages/$vid/log" "$B"
+  # Backfill: the earlier prompts, oldest first (the last 50 at most).
+  k=0
+  while IFS= read -r p; do
+    k=$((k + 1))
+    t=$(printf 'Captain (before Fleet joined): %s' "$p" | tr '\001' '\n' | redact | json_text 1000)
+    printf '{"kind":"note","text":"%s","opId":"%s-b%s"}' "$t" "$op" "$k" >"$B"
+    post "/api/voyages/$vid/log" "$B"
+  done <"$BF"
+  : >"$WF/state/$sid.backfilled"
+  rm -f "$B" "$BF"
+  CODE=201
+  return 0
+}
+
+# Send one queue line ($2) for session $1 with opId $3. Returns 0 sent (or dropped for good),
+# 1 to retry later.
+send_line() {
+  sid=$1 line=$2 op=$3
+  vid=$(sed -n 1p "$WF/sessions/$sid" 2>/dev/null)
+  case "$line" in
+  '{"t":"open",'*)
+    # Already linked (by /fleet:join, or a voyage that's still open): keep it.
+    [ -n "$vid" ] && return 0
+    open_voyage "$sid" "$line" "$op" && return 0
+    ;;
+  '{"t":"log",'*)
+    [ -n "$vid" ] || { flog "log $sid: no open voyage; dropped"; return 0; }
+    body=$(printf '%s' "$line" | sed 's/^{"t":"log",//; s/}$//')
+    B="$WF/tmp/body.$$"
+    printf '{%s,"opId":"%s"}' "$body" "$op" >"$B"
+    post "/api/voyages/$vid/log" "$B"
+    if [ "$CODE" = 409 ] && grep -q 'is closed' "$RESP"; then
+      # Closed under us (the session was resumed after it ended): open a fresh voyage and resend.
+      cwd=$(sed -n '$p' "$WF/sessions/$sid.voyages" 2>/dev/null | awk -F '\t' '{ print $2 }' | json_text 0)
+      rm -f "$WF/sessions/$sid"
+      if open_voyage "$sid" "{\"t\":\"open\",\"cwd\":\"$cwd\",\"tp\":\"\",\"tn\":0,\"title\":\"(resumed)\"}" "$op-r"; then
+        vid=$(sed -n 1p "$WF/sessions/$sid")
+        printf '{%s,"opId":"%s"}' "$body" "$op" >"$B"
+        post "/api/voyages/$vid/log" "$B"
+      fi
+    fi
+    rm -f "$B"
+    ;;
+  '{"t":"turn",'*)
+    # A check-in, captured passively: the first 280 characters of Claude's last message.
+    [ -n "$vid" ] || return 0
+    crew=$(printf '%s' "$line" | sed -n 's/^{"t":"turn","crew":"\([^"]*\)",.*$/\1/p')
+    raw=$(printf '%s' "$line" | sed -n 's/^{"t":"turn","crew":"[^"]*","tp":".*","raw":"\(.*\)"}$/\1/p')
+    if [ -z "$raw" ] && [ -z "$crew" ]; then
+      tp=$(unjson "$(printf '%s' "$line" | sed -n 's/^{"t":"turn","crew":"[^"]*","tp":"\(.*\)","raw":".*"}$/\1/p')")
+      raw=$(transcript_last_assistant "$tp")
+    fi
+    text=$(printf '%s' "$raw" | json_unescape | redact | tr '\n' ' ' | json_text 280)
+    [ -n "$text" ] || return 0
+    if [ -n "$crew" ]; then
+      text="Crew ($crew): $text"
+      kind=note
+    else
+      kind=state
+      # The same words as the last check-in say nothing new.
+      [ "$text" = "$(cat "$WF/state/$sid.laststate" 2>/dev/null)" ] && return 0
+    fi
+    B="$WF/tmp/body.$$"
+    printf '{"kind":"%s","text":"%s","opId":"%s"}' "$kind" "$text" "$op" >"$B"
+    post "/api/voyages/$vid/log" "$B"
+    rm -f "$B"
+    case "$CODE" in 2*) [ "$kind" = state ] && printf '%s' "$text" >"$WF/state/$sid.laststate" ;; esac
+    ;;
+  '{"t":"close",'*)
+    [ -n "$vid" ] || return 0
+    reason=$(printf '%s' "$line" | sed -n 's/^{"t":"close","reason":"\(.*\)"}$/\1/p')
+    B="$WF/tmp/body.$$"
+    printf '{"summary":"Session ended (%s). Resume: claude --resume %s","opId":"%s"}' "${reason:-other}" "$sid" "$op" >"$B"
+    post "/api/voyages/$vid/close" "$B"
+    rm -f "$B"
+    case "$CODE" in 2* | 409) rm -f "$WF/sessions/$sid"; return 0 ;; esac
+    ;;
+  *)
+    flog "unknown queue line for $sid; dropped"
+    return 0
+    ;;
+  esac
+  case "$CODE" in
+  2*) return 0 ;;
+  409) if grep -q 'is closed' "$RESP" 2>/dev/null; then flog "send $sid: voyage closed; dropped"; return 0; fi
+    flog "send $sid: 409 $(head -c 200 "$RESP" 2>/dev/null); will retry"; return 1 ;;
+  000 | 401 | 408 | 409 | 429 | 5*) flog "send $sid: $CODE $(head -c 200 "$RESP" 2>/dev/null); will retry"; return 1 ;;
+  *) flog "send $sid: $CODE $(head -c 300 "$RESP" 2>/dev/null); dropped"; return 0 ;;
+  esac
+}
+
+# One pass over every session with work. Returns 1 if anything is left to retry.
+pass() {
+  left=0
+  for f in "$WF"/queue/*.jsonl "$WF"/work/*.jsonl; do
+    [ -f "$f" ] || continue
+    sid=$(basename "$f" .jsonl)
+    W="$WF/work/$sid.jsonl"
+    [ -f "$W" ] || mv "$WF/queue/$sid.jsonl" "$W" 2>/dev/null || continue
+    base=$(cat "$WF/state/$sid.seq" 2>/dev/null || echo 0)
+    done_n=$(cat "$WF/state/$sid.cursor" 2>/dev/null || echo 0)
+    total=$(awk 'END { print NR }' "$W")
+    i=$done_n
+    while [ "$i" -lt "$total" ]; do
+      i=$((i + 1))
+      line=$(sed -n "${i}p" "$W")
+      if send_line "$sid" "$line" "$sid-$((base + i))"; then
+        echo "$i" >"$WF/state/$sid.cursor"
+      else
+        i=-1
+        break
+      fi
+    done
+    if [ "$i" -lt 0 ]; then
+      left=1
+      [ "$CODE" = 401 ] && return 1
+      continue
+    fi
+    echo $((base + total)) >"$WF/state/$sid.seq"
+    rm -f "$W" "$WF/state/$sid.cursor"
+  done
+  return $left
+}
+
+run() {
+  wait_s=5
+  start=$(date +%s)
+  while :; do
+    pass && break
+    [ $(($(date +%s) - start + wait_s)) -gt 180 ] && break
+    sleep "$wait_s"
+    wait_s=$((wait_s * 2))
+  done
+}
+
+while lock; do
+  trap 'unlock; rm -f "$RESP"' EXIT
+  run
+  unlock
+  trap - EXIT
+  rm -f "$RESP"
+  # Something queued while we held the lock? Go again; else we're done.
+  set -- "$WF"/queue/*.jsonl
+  [ -f "$1" ] || break
+  [ "$CODE" = 401 ] && break
+done
+# Tidy: per-session state older than 30 days.
+find "$WF/state" "$WF/tmp" -type f -mtime +30 -exec rm -f {} + 2>/dev/null
+exit 0

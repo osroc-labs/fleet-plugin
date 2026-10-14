@@ -1,0 +1,217 @@
+# Shared by fleet-hook, fleet-send and fleet-headers. POSIX sh; sed, awk, curl, git and date only.
+# Byte-wise text handling everywhere, so invalid UTF-8 never trips sed or awk.
+LC_ALL=C
+export LC_ALL
+umask 077
+
+FLEET_DIR="${FLEET_HOME:-$HOME/.fleet}"
+WF="$FLEET_DIR/wayfind"
+CONFIG="$FLEET_DIR/config.json"
+
+# One line to ~/.fleet/wayfind/log; rotates at 1 MB. Never fails.
+flog() {
+  mkdir -p "$WF" 2>/dev/null || return 0
+  if [ -f "$WF/log" ] && [ "$(wc -c <"$WF/log" 2>/dev/null || echo 0)" -gt 1048576 ]; then
+    mv -f "$WF/log" "$WF/log.1" 2>/dev/null
+  fi
+  printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*" >>"$WF/log" 2>/dev/null
+  return 0
+}
+
+# A top-level string value from a small JSON file ($1 file, $2 key). Nested objects are skipped.
+json_file_get() {
+  [ -f "$1" ] || return 0
+  awk -v want="$2" '
+    { s = s $0 "\n" }
+    END {
+      depth = 0; n = length(s); i = 1
+      while (i <= n) {
+        c = substr(s, i, 1)
+        if (c == "\"") {
+          rest = substr(s, i + 1)
+          if (!match(rest, /^([^"\\]|\\.)*"/)) exit
+          str = substr(rest, 1, RLENGTH - 1); i += RLENGTH + 1
+          if (depth == 1 && expect_val) { if (key == want) { print str; exit } expect_val = 0; continue }
+          if (depth == 1) { key = str; after = substr(s, i); if (match(after, /^[ \t\r\n]*:/)) { i += RLENGTH; expect_val = 1 } }
+          continue
+        }
+        if (c == "{" || c == "[") depth++
+        else if (c == "}" || c == "]") depth--
+        else if (c != " " && c != "\t" && c != "\n" && c != "\r" && c != ",") expect_val = 0
+        i++
+      }
+    }' "$1" 2>/dev/null
+}
+
+# The API key: FLEET_KEY, else "key" in ~/.fleet/config.json.
+fleet_key() {
+  if [ -n "${FLEET_KEY:-}" ]; then printf '%s' "$FLEET_KEY"; return 0; fi
+  json_file_get "$CONFIG" key
+}
+
+# The server: FLEET_SERVER, else "server" in config.json, else production.
+fleet_server() {
+  s="${FLEET_SERVER:-}"
+  [ -n "$s" ] || s=$(json_file_get "$CONFIG" server)
+  [ -n "$s" ] || s="https://fleet.osroc.io"
+  printf '%s' "${s%/}"
+}
+
+# Escape stdin as the inside of a JSON string, after cutting it to $1 bytes (0 = no cut) on a
+# UTF-8 boundary, with an ellipsis when cut. Control characters become spaces.
+json_text() {
+  awk -v max="${1:-0}" '
+    function cut(s, n,   i, c, need, L) {
+      s = substr(s, 1, n); L = length(s)
+      for (i = L; i > 0 && i > L - 4; i--) {
+        c = substr(s, i, 1)
+        if (c < "\200") return s
+        if (c >= "\300") {
+          need = (c >= "\360") ? 4 : (c >= "\340") ? 3 : 2
+          return (L - i + 1 < need) ? substr(s, 1, i - 1) : s
+        }
+      }
+      return s
+    }
+    { s = (NR > 1) ? s "\n" $0 : $0 }
+    END {
+      sub(/^[ \t\n\r]+/, "", s); sub(/[ \t\n\r]+$/, "", s)
+      if (max > 0 && length(s) > max) { s = cut(s, max - 3); sub(/[ \t\n\r]+$/, "", s); s = s "\342\200\246" }
+      gsub(/\\/, "\\\\", s); gsub(/"/, "\\\"", s)
+      gsub(/\n/, "\\n", s); gsub(/\t/, "\\t", s); gsub(/\r/, "", s)
+      gsub(/[\001-\037\177]/, " ", s)
+      printf "%s", s
+    }'
+}
+
+# Redact secrets from stdin before anything is queued. Order matters: specific keys first.
+redact() {
+  sed -E \
+    -e '/-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----/,/-----END [A-Z0-9 ]*PRIVATE KEY-----/c\
+[redacted:pem]' \
+    -e 's/(^|[^A-Za-z0-9_-])sk-[A-Za-z0-9_-]{16,}/\1[redacted:key]/g' \
+    -e 's/(^|[^A-Za-z0-9_])[rsp]k_(live|test)_[A-Za-z0-9]{10,}/\1[redacted:key]/g' \
+    -e 's/(^|[^A-Za-z0-9_])f[krj]_[A-Za-z0-9_-]{8,}/\1[redacted:fleet]/g' \
+    -e 's/(^|[^A-Za-z0-9_])github_pat_[A-Za-z0-9_]{20,}/\1[redacted:github]/g' \
+    -e 's/(^|[^A-Za-z0-9_])gh[pousr]_[A-Za-z0-9]{20,}/\1[redacted:github]/g' \
+    -e 's/(^|[^A-Za-z0-9_])xox[abprs]-[A-Za-z0-9-]{10,}/\1[redacted:slack]/g' \
+    -e 's/(^|[^A-Za-z0-9])(AKIA|ASIA)[A-Z0-9]{16}/\1[redacted:aws]/g' \
+    -e 's/([Aa][Ww][Ss]_?[Ss][Ee][Cc][Rr][Ee][Tt]_?[Aa][Cc][Cc][Ee][Ss][Ss]_?[Kk][Ee][Yy]["'"'"']?[[:space:]]*[=:][[:space:]]*["'"'"']?)[A-Za-z0-9/+=]{30,}/\1[redacted:aws]/g' \
+    -e 's/(^|[^A-Za-z0-9_])AIza[0-9A-Za-z_-]{35}/\1[redacted:google]/g' \
+    -e 's/(^|[^A-Za-z0-9_])eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/\1[redacted:jwt]/g' \
+    -e 's/([Bb][Ee][Aa][Rr][Ee][Rr][[:space:]]+)[A-Za-z0-9._~+\/-]{8,}=*/\1[redacted:bearer]/g' \
+    -e 's#([a-zA-Z][a-zA-Z0-9+.-]*://[^[:space:]:/@]+:)[^[:space:]@/]+@#\1[redacted]@#g' \
+    -e 's/(([Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]|[Pp][Aa][Ss][Ss][Ww][Dd]|[Pp][Ww][Dd]|[Pp][Aa][Ss][Ss][Pp][Hh][Rr][Aa][Ss][Ee])["'"'"']?[[:space:]]*[=:][[:space:]]*["'"'"']?)[^[:space:]"'"'"',;&]+/\1[redacted:password]/g' \
+    -e 's/^([[:space:]]*(export[[:space:]]+)?[A-Z0-9_]*(SECRET|TOKEN|PASSWORD|PASSWD|KEY|CREDENTIAL|CREDENTIALS|AUTH|DSN|COOKIE)[A-Z0-9_]*[[:space:]]*=[[:space:]]*)[^[:space:]].*$/\1[redacted:env]/' \
+    -e 's/(^|[^A-Za-z0-9_])([A-Z0-9_]*(SECRET|TOKEN|PASSWORD|PASSWD|KEY)[A-Z0-9_]*=)[^[:space:]"'"'"'[]+/\1\2[redacted:env]/g'
+}
+
+# The decoded value of the first "$2": "…" string in the JSON in file $1, from the first match
+# of "$3" on (optional, a key that must come first, such as tool_response). Key names can't
+# occur inside JSON string values unescaped, so the first match is the real key.
+json_get() {
+  awk -v key="$2" -v after="${3:-}" '
+    { s = (NR > 1) ? s "\n" $0 : $0 }
+    END {
+      if (after != "") { if (!match(s, "\"" after "\"[ \t\r\n]*:")) exit; s = substr(s, RSTART + RLENGTH) }
+      if (!match(s, "\"" key "\"[ \t\r\n]*:[ \t\r\n]*\"")) exit
+      s = substr(s, RSTART + RLENGTH)
+      if (!match(s, /^([^"\\]|\\.)*/)) exit
+      v = substr(s, 1, RLENGTH)
+      gsub(/\\\\/, "\001", v)
+      gsub(/\\"/, "\"", v); gsub(/\\\//, "/", v)
+      gsub(/\\n/, "\n", v); gsub(/\\t/, "\t", v); gsub(/\\r/, "", v)
+      gsub(/\\[bf]/, " ", v); gsub(/\\u[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]/, " ", v)
+      gsub(/\001/, "\\", v)
+      printf "%s", v
+    }' "$1" 2>/dev/null
+}
+
+# The user's typed prompts from the first $2 lines of transcript $1 (Claude Code's JSONL), one per
+# line, newlines inside a prompt as \001. Best effort: user lines that are tool results, meta,
+# subagent, compaction summaries or slash-command plumbing are skipped; assistant text never read.
+transcript_prompts() {
+  [ -f "$1" ] || return 0
+  head -n "${2:-0}" "$1" 2>/dev/null | awk '
+    !/"type"[ ]*:[ ]*"user"/ { next }
+    /"isMeta"[ ]*:[ ]*true/ || /"isSidechain"[ ]*:[ ]*true/ || /"isCompactSummary"[ ]*:[ ]*true/ { next }
+    /"tool_use_id"[ ]*:/ || /"toolUseResult"[ ]*:/ { next }
+    {
+      s = $0
+      if (!match(s, /"message"[ ]*:[ ]*\{/)) next
+      s = substr(s, RSTART + RLENGTH)
+      if (!match(s, /"content"[ ]*:[ ]*/)) next
+      s = substr(s, RSTART + RLENGTH)
+      if (substr(s, 1, 1) != "\"") {
+        if (!match(s, /"type"[ ]*:[ ]*"text"[ ]*,[ ]*"text"[ ]*:[ ]*"/)) next
+        s = substr(s, RSTART + RLENGTH)
+      } else s = substr(s, 2)
+      if (!match(s, /^([^"\\]|\\.)*/)) next
+      v = substr(s, 1, RLENGTH)
+      gsub(/\\\\/, "\002", v)
+      gsub(/\\"/, "\"", v); gsub(/\\\//, "/", v)
+      gsub(/\\n/, "\001", v); gsub(/\\t/, " ", v); gsub(/\\r/, "", v)
+      gsub(/\\[bf]/, " ", v); gsub(/\\u[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]/, " ", v)
+      gsub(/\002/, "\\", v)
+      if (v ~ /^[ \001]*$/) next
+      if (v ~ /^[ \001]*<(command-|local-command|system-reminder|bash-|task-notification)/) next
+      if (v ~ /^\[Request interrupted/ || v ~ /^Caveat: /) next
+      print v
+    }' | tail -n 50
+}
+
+# Several short top-level fields at once from the JSON in file $1, one per line, reduced to
+# [A-Za-z0-9_.:/-]. The last line is 1 when the tool's result holds an https:// link, else 0.
+json_fields() {
+  f=$1
+  shift
+  awk -v keys="$*" '
+    { s = (NR > 1) ? s "\n" $0 : $0 }
+    END {
+      n = split(keys, k, " ")
+      for (j = 1; j <= n; j++) {
+        v = ""
+        if (match(s, "\"" k[j] "\"[ \t\r\n]*:[ \t\r\n]*\"")) {
+          r = substr(s, RSTART + RLENGTH)
+          if (match(r, /^([^"\\]|\\.)*/)) v = substr(r, 1, RLENGTH)
+        }
+        gsub(/[^A-Za-z0-9_.:\/-]/, "", v)
+        print v
+      }
+      u = 0
+      if (match(s, /"tool_response"[ \t]*:/) && index(substr(s, RSTART), "https://")) u = 1
+      print u
+    }' "$f" 2>/dev/null
+}
+
+# Decode a JSON string body (no surrounding quotes) on stdin to text.
+json_unescape() {
+  awk '
+    { s = (NR > 1) ? s "\n" $0 : $0 }
+    END {
+      gsub(/\\\\/, "\001", s)
+      gsub(/\\"/, "\"", s); gsub(/\\\//, "/", s)
+      gsub(/\\n/, "\n", s); gsub(/\\t/, "\t", s); gsub(/\\r/, "", s)
+      gsub(/\\[bf]/, " ", s); gsub(/\\u[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]/, " ", s)
+      gsub(/\001/, "\\", s)
+      printf "%s", s
+    }'
+}
+
+# The text of the last assistant message in transcript $1, still JSON-escaped (fallback when the
+# Stop hook had no last_assistant_message). Reads only the file's last 200 lines.
+transcript_last_assistant() {
+  [ -f "$1" ] || return 0
+  tail -n 200 "$1" 2>/dev/null | awk '
+    /"type"[ ]*:[ ]*"assistant"/ && !/"isSidechain"[ ]*:[ ]*true/ {
+      s = $0; t = ""
+      while (match(s, /"type"[ ]*:[ ]*"text"[ ]*,[ ]*"text"[ ]*:[ ]*"/)) {
+        s = substr(s, RSTART + RLENGTH)
+        if (!match(s, /^([^"\\]|\\.)*/)) break
+        t = (t == "") ? substr(s, 1, RLENGTH) : t "\\n" substr(s, 1, RLENGTH)
+        s = substr(s, RLENGTH + 1)
+      }
+      if (t != "") last = t
+    }
+    END { printf "%s", substr(last, 1, 4000) }'
+}

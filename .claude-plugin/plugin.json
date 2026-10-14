@@ -1,0 +1,10 @@
+{
+  "name": "fleet",
+  "displayName": "Fleet",
+  "version": "0.1.0",
+  "description": "Wayfinding for Claude Code: every session becomes a voyage in your Fleet ship's log (prompts, commits, PRs, deploys, check-ins), plus the Fleet MCP tools. No binary: POSIX sh hooks.",
+  "author": { "name": "osroc-labs", "url": "https://fleet.osroc.io" },
+  "homepage": "https://fleet.osroc.io",
+  "repository": "https://github.com/osroc-labs/fleet-plugin",
+  "keywords": ["fleet", "voyages", "session log", "wayfinding"]
+}

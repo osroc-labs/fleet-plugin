@@ -1,0 +1,174 @@
+#!/bin/sh
+# Fleet wayfinding hook: fleet-hook <Event>, with Claude Code's hook JSON on stdin.
+# Fast and local: it redacts, appends one line to ~/.fleet/wayfind/queue/<session>.jsonl and
+# starts the background sender. It never touches the network, never prints anything (Claude
+# never hears from Fleet: it only listens) and always exits 0.
+#
+# A session registers on its first hook event: a new one on its first prompt, one that was
+# already running when the plugin was installed on whatever event reaches us first (the sender
+# then backfills its earlier prompts from the transcript).
+EVENT="${1:-}"
+HERE=$(dirname "$0")
+. "$HERE/lib.sh" 2>/dev/null || { cat >/dev/null; exit 0; }
+
+# No key: do nothing, silently.
+if [ -z "${FLEET_KEY:-}" ] && ! grep -q '"key"' "$CONFIG" 2>/dev/null; then
+  cat >/dev/null
+  exit 0
+fi
+
+mkdir -p "$WF/queue" "$WF/state" "$WF/sessions" "$WF/tmp" 2>/dev/null || { cat >/dev/null; exit 0; }
+IN="$WF/tmp/in.$$"
+cat >"$IN" 2>/dev/null
+trap 'rm -f "$IN"' EXIT
+
+{ read -r SID; read -r TOOL; read -r SRC; read -r HAS_URL; } <<EOF
+$(json_fields "$IN" session_id tool_name source)
+EOF
+case "$SID" in "" | *[!A-Za-z0-9_-]*) flog "$EVENT: bad session_id"; exit 0 ;; esac
+Q="$WF/queue/$SID.jsonl"
+ST="$WF/state/$SID"
+
+enqueue() { printf '%s\n' "$1" >>"$Q" 2>/dev/null || flog "$EVENT: can't write $Q"; }
+
+# kind, byte limit, prefix; text on stdin. Queues one log line.
+queue_log() {
+  t=$( { printf '%s' "$3"; cat; } | redact | json_text "$2")
+  [ -n "$t" ] && [ "$t" != "$3" ] && enqueue "{\"t\":\"log\",\"kind\":\"$1\",\"text\":\"$t\"}"
+}
+
+spawn_sender() {
+  nohup sh "$HERE/fleet-send" </dev/null >/dev/null 2>&1 &
+}
+
+voyage_id() { sed -n 1p "$WF/sessions/$SID" 2>/dev/null; }
+
+# Register this session: queue an open line ($1: title, JSON-escaped, may be empty). The sender
+# backfills prompts from the first <tn> lines of the transcript, so it never re-sends this one.
+register() {
+  [ -f "$ST.opened" ] && return 0
+  : >"$ST.opened"
+  cwd=$(json_get "$IN" cwd | json_text 0)
+  tp=$(json_get "$IN" transcript_path)
+  tn=0
+  [ -f "$tp" ] && tn=$(wc -l <"$tp" 2>/dev/null | tr -d ' ')
+  tpe=$(printf '%s' "$tp" | json_text 0)
+  enqueue "{\"t\":\"open\",\"cwd\":\"$cwd\",\"tp\":\"$tpe\",\"tn\":${tn:-0},\"title\":\"$1\"}"
+}
+
+# Has this session got history already (it ran before the hooks did)?
+has_history() {
+  tp=$(json_get "$IN" transcript_path)
+  [ -s "$tp" ]
+}
+
+# Claude's final text for the turn, still JSON-escaped, cut to 4000 bytes: the sender decodes,
+# redacts and trims it (the transcript can lag the hook, so this field is the reliable source).
+raw_last_message() {
+  awk '
+    { s = (NR > 1) ? s "\n" $0 : $0 }
+    END {
+      if (!match(s, /"last_assistant_message"[ \t\r\n]*:[ \t\r\n]*"/)) exit
+      s = substr(s, RSTART + RLENGTH)
+      if (!match(s, /^([^"\\]|\\.)*/)) exit
+      v = substr(s, 1, RLENGTH)
+      if (length(v) > 4000) { v = substr(v, 1, 4000); sub(/\\(u[0-9a-fA-F]?[0-9a-fA-F]?[0-9a-fA-F]?)?$/, "", v) }
+      printf "%s", v
+    }' "$IN" 2>/dev/null
+}
+
+case "$EVENT" in
+SessionStart)
+  # Resumed, compacted or forked with history: register now. A new session waits for its prompt.
+  [ "$SRC" != "startup" ] && [ "$SRC" != "clear" ] && has_history && register ""
+  [ -s "$Q" ] || [ -n "$(ls "$WF/work" 2>/dev/null)" ] && spawn_sender
+  ;;
+
+UserPromptSubmit)
+  P="$WF/tmp/prompt.$$"
+  json_get "$IN" prompt >"$P"
+  register "$(redact <"$P" | tr '\n' ' ' | json_text 80)"
+  if [ -f "$ST.waiting" ]; then
+    rm -f "$ST.waiting"
+    printf 'Back at the helm: answered in the terminal.' | queue_log answer 1000 ""
+  fi
+  queue_log note 1000 "Captain: " <"$P"
+  rm -f "$P"
+  spawn_sender
+  ;;
+
+PostToolUse)
+  if [ ! -f "$ST.opened" ]; then has_history && register "" || exit 0; fi
+  if [ "$TOOL" = "Bash" ]; then
+    CMD=$(json_get "$IN" command tool_input | head -c 2000)
+    case "$CMD" in *commit* | *push* | *"gh pr"* | *deploy* | *publish* | *eas*) ;; *) CMD="" ;; esac
+    if [ -n "$CMD" ]; then
+      # What kind of shipping it was, in one pass: commit, push, merge, deploy.
+      kinds=$(printf '%s\n' "$CMD" | awk '
+        BEGIN { pre = "(^|[ \t;&|(])" }
+        { c = c " " $0 }
+        END {
+          if (c ~ pre "git( -C [^ ]+)? commit([ \t]|$)") print "commit"
+          if (c ~ pre "git( -C [^ ]+)? push([ \t]|$)") print "push"
+          if (c ~ pre "gh pr merge([ \t]|$)") print "merge"
+          if (c ~ pre "(wrangler (deploy|publish)|(pnpm|npm|yarn|bun) (run )?deploy|eas (update|submit)|fly(ctl)? deploy|netlify deploy|firebase deploy|vercel( .*)? --prod)([ \t]|$)") print "deploy"
+        }')
+      first=$(printf '%s' "$CMD" | tr '\n' ' ' | redact | head -c 200)
+      for k in $kinds; do
+        case "$k" in
+        commit)
+          c=$(json_get "$IN" stdout tool_response | sed -n -E 's/^\[([^] ]+)( \(root-commit\))? ([0-9a-f]{7,})\] (.*)$/commit \3 on \1: \4/p' | head -n 1)
+          [ -n "$c" ] && printf '%s' "$c" | queue_log note 1000 ""
+          ;;
+        *) printf '%s: %s' "$k" "$first" | queue_log note 1000 "" ;;
+        esac
+      done
+    fi
+  fi
+  # PR, issue and artifact links in the tool's result, each once per session.
+  [ "$HAS_URL" = 1 ] && awk 'match($0, /"tool_response"[ \t]*:/) { print substr($0, RSTART) }' "$IN" |
+    grep -Eo 'https://(github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/(pull|issues)/[0-9]+|claude\.ai/(code/)?artifact/[A-Za-z0-9-]+)' |
+    head -n 5 | while IFS= read -r u; do
+      grep -qxF "$u" "$ST.urls" 2>/dev/null && continue
+      printf '%s\n' "$u" >>"$ST.urls"
+      case "$u" in */pull/*) l="pr" ;; */issues/*) l="issue" ;; *) l="artifact" ;; esac
+      printf '%s: %s' "$l" "$u" | queue_log note 1000 ""
+    done
+  [ -s "$Q" ] && spawn_sender
+  ;;
+
+Stop | SubagentStop)
+  # Check-ins, captured passively: the sender posts the first 280 characters of Claude's last
+  # message as the voyage's state (a subagent's as a crew line). Nothing is asked of Claude.
+  if [ ! -f "$ST.opened" ]; then has_history && register "" || exit 0; fi
+  raw=$(raw_last_message)
+  tpe=$(json_get "$IN" transcript_path | json_text 0)
+  if [ "$EVENT" = Stop ]; then
+    enqueue "{\"t\":\"turn\",\"crew\":\"\",\"tp\":\"$tpe\",\"raw\":\"$raw\"}"
+  else
+    crew=$(json_get "$IN" agent_type | sed 's/[^A-Za-z0-9_.:-]//g' | head -c 40)
+    enqueue "{\"t\":\"turn\",\"crew\":\"${crew:-crew}\",\"tp\":\"\",\"raw\":\"$raw\"}"
+  fi
+  spawn_sender
+  ;;
+
+Notification)
+  if [ ! -f "$ST.opened" ]; then has_history && register "" || exit 0; fi
+  [ -f "$ST.waiting" ] && exit 0
+  msg=$(json_get "$IN" message | tr '\n\r\t' '   ' | sed -E 's/([.!?])[[:space:]].*$/\1/; s/[.!?]+$//')
+  [ -n "$msg" ] || msg="Claude is waiting for your input"
+  printf 'Waiting on you: %s' "$msg" | queue_log question 200 ""
+  : >"$ST.waiting"
+  spawn_sender
+  ;;
+
+SessionEnd)
+  if [ -f "$ST.opened" ]; then
+    reason=$(json_get "$IN" reason | json_text 40)
+    enqueue "{\"t\":\"close\",\"reason\":\"$reason\"}"
+  fi
+  rm -f "$ST.opened" "$ST.waiting"
+  [ -s "$Q" ] && spawn_sender
+  ;;
+esac
+exit 0

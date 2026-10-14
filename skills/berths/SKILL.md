@@ -1,0 +1,24 @@
+---
+name: berths
+description: Lease a real iPhone, iPad or Apple TV simulator from your Fleet to see, test, screenshot or tap through an iOS, iPadOS or tvOS app, an Expo or React Native dev build, or a web page in Safari. Use whenever you need to look at an app or page on an Apple device instead of guessing.
+---
+
+# Berths: an Apple simulator on demand
+
+A berth is a simulator slot on a Mac in the user's Fleet. Everything goes through the fleet MCP.
+
+1. **See what's free:** `fleet_status`. Berths that are `ashore` are free; `adrift` means that Mac is offline.
+2. **Have a voyage:** this session's is the first line of `~/.fleet/wayfind/sessions/${CLAUDE_SESSION_ID}` (read it); without one, `voyage_start` with `repo` from `git remote get-url origin`.
+3. **Lease:** `lease` with `voyage_id` and `target` `iphone`, `ipad` or `appletv` (narrow it with `iphone:17 pro` or `@iOS 26`). Leasing again on the same voyage gives the same berth back.
+4. **Boot** if it isn't: `boot`. The first boot of a berth can take about 40 seconds.
+5. **Put the app on it:**
+   - A build: zip the `.app`, get `upload_url`, PUT the zip there, then `install_app` with the `blobKey` and `launch_app` with the bundle id.
+   - An Expo or Metro dev server, or any web page: `open_url` with the URL (`exp://…` or `https://…`). The berth can't reach `localhost` on this machine: if the `fleet` CLI is installed, `fleet expose <port>` gives a public URL to open instead.
+6. **Look, then act:** `screenshot` and actually look at it. `describe_ui` gives the elements and their ids; `tap` by id, `type_text`, `swipe`, `press_button`. Screenshot again after each step that changes the screen.
+7. **Release:** `release` when you're done, every time, even after a failure.
+
+Rules:
+- Always release the lease. A held berth blocks everyone else.
+- Pass an `op_id` on every step (a stable name such as `login-tap-1`), so a retry never taps twice.
+- Prefer `describe_ui` ids over coordinates.
+- Post what you saw with `voyage_log` (kind `state`, 280 characters or fewer), with the screenshot when it matters.

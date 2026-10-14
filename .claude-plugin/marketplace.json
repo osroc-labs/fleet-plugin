@@ -1,0 +1,12 @@
+{
+  "name": "osroc",
+  "owner": { "name": "osroc-labs", "url": "https://fleet.osroc.io" },
+  "description": "Plugins from osroc-labs.",
+  "plugins": [
+    {
+      "name": "fleet",
+      "source": "./",
+      "description": "Every Claude Code session becomes a voyage in your Fleet ship's log, plus the Fleet MCP tools."
+    }
+  ]
+}
