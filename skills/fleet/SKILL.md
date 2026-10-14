@@ -1,0 +1,51 @@
+---
+name: fleet
+description: Fleet's front door. Shows the Fleet workflows (idea, prototype, build, iOS loop, verify, review, ship, triage) with one line each, what's waiting on the user in Fleet, and suggests the right workflow for what they describe. Use when the user types /fleet or asks what Fleet can do or which Fleet workflow fits.
+argument-hint: "[what you want to do]"
+allowed-tools: Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-api" *), Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-repo" *), Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-login" check)
+---
+
+# /fleet
+
+What the user wants: "$ARGUMENTS"
+
+This computer's Fleet key: !`sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-login" check`
+
+Waiting on the user in Fleet (raw; the Inbox): !`sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-api" inbox`
+
+This repo: !`sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-repo" --short`
+
+## The workflows
+
+| Command | For |
+| --- | --- |
+| `/fleet:idea` | Turn a brain dump into researched, scoped GitHub issues |
+| `/fleet:prototype` | 2–4 different options side by side in Fleet; you pick, then it gets built |
+| `/fleet:build` | Build a feature on a branch, tested, with a PR |
+| `/fleet:ios-loop` | The iPhone loop: build, run on a simulator, smoke test, screenshots for your review |
+| `/fleet:verify` | Check a change really works (tests plus a real look) and report pass or fail |
+| `/fleet:review` | An independent review of a branch or PR, with fixes |
+| `/fleet:ship` | Merge and deploy, only with your yes |
+| `/fleet:triage` | "It's broken": logs first, find the cause, fix, verify |
+| `/fleet:sim` | Quick look at an app or page on an iPhone, iPad or Apple TV simulator |
+| `/fleet:status` | Your Macs, simulators and what's waiting on you |
+| `/fleet:find` | Find a past session and the line to resume it |
+
+## What to reply
+
+Keep it short and plain. No naval words here.
+
+1. **If the key line says `Run /fleet:login first.`:** one line saying Fleet isn't linked on this computer (`/fleet:login` takes a minute). The workflows still run without it; prototypes and reviews then stay in chat instead of Fleet.
+2. **Waiting on you:** from the Inbox JSON above, list up to 5 items, one line each: what it is (a pick, a review, a question, a session waiting on permission, an offline Mac), its goal or line, and its link (`https://fleet.osroc.io` + its `href`). Skip storms and moods. If it's empty, say "Nothing's waiting on you." If it couldn't be read, say so in one line and move on.
+3. **If the user described what they want** (the quoted text above isn't empty): name the one workflow that fits and why, in one sentence, then start it with the Skill tool when they clearly asked for it to happen ("prototype the onboarding", "ship #12"); otherwise ask "Want me to start it?". How to choose:
+   - a loose idea, a wish list, "what if we…" → `fleet:idea`
+   - "show me options", a redesign, a look or feel that's open → `fleet:prototype`
+   - a clear feature or change → `fleet:build` (it hands iOS/Expo/React Native work to `fleet:ios-loop`)
+   - "does it work?", "check it" → `fleet:verify`
+   - "review this PR/branch" → `fleet:review`
+   - "ship it", "deploy", "merge it" → `fleet:ship`
+   - "it's broken", an error, a crash → `fleet:triage`
+   - "show me it on an iPhone" → `fleet:sim`
+4. **Otherwise:** show the table above as a short list, then one line: "Tell me what you're working on and I'll pick the workflow."
+
+If the repo has its own skill for a step (the repo line lists its skills), say that one runs instead of Fleet's for that step.

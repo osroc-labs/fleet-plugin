@@ -21,3 +21,5 @@ Rules:
 - Always release the lease. A held berth blocks everyone else.
 - Pass an `op_id` on every step (a stable name such as `login-tap-1`), so a retry never taps twice.
 - Prefer `describe_ui` ids over coordinates.
+
+Related: building and testing an iOS, Expo or React Native change end to end is `fleet:ios-loop`; the user's quick look is `/fleet:sim`.
