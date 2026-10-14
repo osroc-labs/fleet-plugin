@@ -107,11 +107,11 @@ A task is open-ended when it leaves a visible choice undecided: a layout, a cont
 - **Another round (notes):** `fleet:prototype` again on the same voyage.
 - **Tuck away:** comment on the issue, close nothing else, next task.
 
-In `ios` mode a choice of **feel** (gesture, motion, timing) can't be judged in a browser: build two or three variants behind a flag instead and let the user switch them in review; delete the losers after the pick.
+A choice of **feel** (motion, timing) goes on the prototype page like any other (`fleet:prototype`: options are pages, animated where it matters). Only when it truly can't be judged off the device (gesture physics, haptics) in `ios` mode, build two or three variants behind a flag and let the user switch them in review; delete the losers after the pick.
 
 ## 3. Build
 
-The `round` step (§ Step skills; Fleet's is `fleet:build`) with the task, the issue, the voyage id, the mode and `from fleet:loop` (it builds on its own branch and opens a draft PR, and returns here instead of handing off). A mapped `round` does § 4 and the preview too; skip to § 5. `voyage_stage` `building` with a one-line note. Tests that would hold up the user's review can wait; they're owed in § 7–8.
+The `round` step (§ Step skills; Fleet's is `fleet:build`) with the task, the issue, the voyage id, the mode and `from fleet:loop` (it builds on its own branch and opens a draft PR, and returns here instead of handing off). A mapped `round` does § 4 and the preview too; skip to § 5. `voyage_stage` `building` with a one-line note and a `status_note` (what's being built, in a few words). Tests that would hold up the user's review can wait; they're owed in § 7–8.
 
 ## 4. Verify, with the mode's check
 
@@ -134,7 +134,7 @@ The `review` step (§ Step skills; Fleet's is `fleet:review <PR> from fleet:loop
    > The title opens as before. No menu.
    Green: Holding a poster shows its preview and menu; a quick tap still opens it.
    ```
-3. `voyage_stage` with `stage: "review"`, `git` (branch, PR, sha, `pushed: true`), `note` = the steps plus what the check couldn't show, and `media` from the mode (§ Modes): up to 6 screenshots, or a preview URL. **Release every lease right after** (captures are copied); the next round leases again.
+3. `voyage_stage` with `stage: "review"`, `git` (branch, PR, sha, `pushed: true`), `note` = the steps plus what the check couldn't show, `status_note` = one line of what to look at, and `media` from the mode (§ Modes): up to 6 screenshots, or a preview URL. **Release every lease right after** (captures are copied); the next round leases again.
 4. **A preview the user can hold** (`commands.deployPreview`: a preview deploy, an over-the-air update to a preview channel): publish it from a clean, pushed tree (`git status --short` empty, `HEAD` pushed; never chained after a merge without that check) as the repo's rules say. When the repo says nothing, ask once whether previews need a yes, and save the answer. Never production.
    - **The label and the steps ride in the build** when the repo reads them (`preview` in the settings): the label `<Environment> · <branch> · <short sha>` in `preview.labelEnv` and the steps file's text in `preview.stepsEnv` (or written to `preview.stepsFile`), set on the `deployPreview` command. Without `preview`, nothing changes: the steps go to Fleet and chat only.
    - **Check where it points** before anyone is told: run `ship.environmentCheck preview` after the publish, when it's set (the preview must call the review environment, never production). A failure blocks the ping: fix it and publish again. If a preview ever reached production, run `commands.restoreProduction` at once (the last good production build), then tell the user what happened. No `restoreProduction`: tell the user now, in one line, and stop shipping until they answer.

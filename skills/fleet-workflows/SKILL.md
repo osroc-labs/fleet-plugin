@@ -100,7 +100,7 @@ Fleet is where the user sees and decides: **Prototypes** (options to pick), **In
 | --- | --- |
 | voyage | A tracked task. A prototype or review lives on a voyage started with `course: "prototype"`. |
 | berth | A simulator on one of the user's Macs. `lease` it, use it, `release` it. |
-| stage | Where a prototype voyage is: charting → waiting (the user picks) → building → review (the user's green) → built. |
+| stage | Where a prototype voyage is: charting → waiting (the user picks) → building → review (the user's green) → built; or `reference` (a page published for reading, closed at once). Every move can carry a one-line `status_note`, shown on cards, the index and share links; `feedback` is the user's note on a round. |
 
 - Start a voyage only inside these workflows, when the step needs one (options to pick, a simulator, a review on the dashboard). Never for ordinary work: sessions are logged automatically, outside your context.
 - **Decisions are the user's**, on the dashboard (Build A–D, Another round, Tuck away; then Ship it or Fix). There's no tool to decide for them. `await_decision` waits for it.
