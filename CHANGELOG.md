@@ -2,6 +2,9 @@
 
 One line per release of the `fleet` plugin, newest first, with the osroc-labs/fleet issues it closes. Update with `claude plugin marketplace update osroc && claude plugin update fleet@osroc`, then start a new session. Server-side changes (new MCP tools, dashboard) go live on fleet.osroc.io without a plugin update; a new session picks up new tools.
 
+## 0.8.8
+- Prototypes have Saga's shape: title, summary, status (waiting, review, feedback, building, built, parked, reference), status note, rounds, issue links; one folder per topic published zipped as the round's `page` (served at relative paths, never inlined); options optional (read from `data-variant`); earlier rounds kept. `prototype_import` takes a Saga `meta.json` + zip as-is, idempotent by slug, including picked-but-building (#18). Snooze a prototype until later; Tuck away is now Park.
+
 ## 0.8.7
 - Berths: device builds (`.ipa`) are refused in plain words; `fleet build-sim` makes a simulator build for Expo projects with no EAS simulator build (prebuild, xcodebuild, zip, optional install) (#16).
 - `run_flow secrets`: pass names only; the runner Mac reads the values (`fleet secrets set|list|rm|import`) and masks them (#17). Needs runner 0.6.0 (`fleet runner update` on each Mac).
