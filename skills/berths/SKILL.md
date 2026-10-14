@@ -24,5 +24,6 @@ Rules:
 - Always release the lease. A held berth blocks everyone else.
 - Pass an `op_id` on every step (a stable name such as `login-tap-1`), so a retry never taps twice.
 - Prefer `describe_ui` ids over coordinates.
+- Slow steps answer within about 45 s: `run_flow` (Maestro flows take minutes), `boot`, `install_app` and `record_stop` say `Still running` with their `op_id` when they aren't done. Then call `op_result` with that `op_id` until the result comes. Don't start the step again: a retry with the same `op_id` returns the same result, passed or failed; use a new `op_id` to really run it again.
 
 Related: building and testing an iOS, Expo or React Native change end to end is `fleet:loop ios` (`/fleet:ios-loop`); the user's quick look is `/fleet:sim`.
