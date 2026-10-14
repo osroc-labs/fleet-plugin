@@ -2,6 +2,9 @@
 
 One line per release of the `fleet` plugin, newest first, with the osroc-labs/fleet issues it closes. Update with `claude plugin marketplace update osroc && claude plugin update fleet@osroc`, then start a new session. Server-side changes (new MCP tools, dashboard) go live on fleet.osroc.io without a plugin update; a new session picks up new tools.
 
+## 0.8.11
+- More iPhones: each Mac can run iPhone 18 Pro Max, iPhone 17e and iPhone Air next to the 18 Pro (Mac page › Simulators by type). Lease them with `iphone:pro max`, `iphone:17e`, `iphone:air`; plain `iphone` stays the 18 Pro. Needs runner 0.7.0 (`fleet runner update`).
+
 ## 0.8.10
 - Friends: up to 50; add a friend by email from Friends (they accept in their Inbox, or when they first sign in); invites survive any sign-in route and the plugin logins; every friend's boat waits at their island in World when they're away.
 
