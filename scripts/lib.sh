@@ -43,6 +43,49 @@ json_file_get() {
     }' "$1" 2>/dev/null
 }
 
+# A top-level value from a small JSON file ($1 file, $2 key), string or literal (false, 0, null…), as written; nested
+# objects and arrays are skipped whole, so a key of the same name inside them never counts.
+json_top() {
+  [ -f "$1" ] || return 0
+  awk -v want="$2" '
+    { s = s $0 "\n" }
+    END {
+      depth = 0; n = length(s); i = 1; ek = 1; key = ""
+      while (i <= n) {
+        c = substr(s, i, 1)
+        if (c == "\"") {
+          rest = substr(s, i + 1)
+          if (!match(rest, /^([^"\\]|\\.)*"/)) exit
+          str = substr(rest, 1, RLENGTH - 1); i += RLENGTH + 1
+          if (depth != 1) continue
+          if (ek) key = str
+          else if (key == want) { print str; exit }
+          continue
+        }
+        if (depth == 1 && !ek && c ~ /[A-Za-z0-9.+-]/) {
+          rest = substr(s, i); match(rest, /^[A-Za-z0-9.+-]+/)
+          if (key == want) { print substr(rest, 1, RLENGTH); exit }
+          i += RLENGTH; continue
+        }
+        if (c == "{" || c == "[") depth++
+        else if (c == "}" || c == "]") depth--
+        else if (depth == 1 && c == ",") ek = 1
+        else if (depth == 1 && c == ":") ek = 0
+        i++
+      }
+    }' "$1" 2>/dev/null
+}
+
+# Is sending Claude's replies turned off? "replies": false (or "false", "off", "no", 0) at the top level of
+# ~/.fleet/config.json, or of .fleet/workflow.json in the repo of the session's folder $1 (its git root, else the folder).
+replies_off() {
+  for _rf in "$CONFIG" "${1:+$(git -C "$1" rev-parse --show-toplevel 2>/dev/null || printf '%s' "$1")/.fleet/workflow.json}"; do
+    [ -n "$_rf" ] && [ -f "$_rf" ] || continue
+    case "$(json_top "$_rf" replies)" in false | off | no | 0 | False | FALSE | Off | OFF | No | NO) return 0 ;; esac
+  done
+  return 1
+}
+
 # The API key: FLEET_KEY, else "key" in ~/.fleet/config.json.
 fleet_key() {
   if [ -n "${FLEET_KEY:-}" ]; then printf '%s' "$FLEET_KEY"; return 0; fi
@@ -127,7 +170,7 @@ json_get() {
     }' "$1" 2>/dev/null
 }
 
-# awk functions shared by human_text and transcript_prompts: human(s) is what the person actually typed in prompt s
+# awk functions shared by human_text and transcript_turns: human(s) is what the person actually typed in prompt s
 # (newlines as \n or \001). Claude Code also submits injected text as prompts: subagent hand-backs (<agent-message>),
 # <task-notification>, <system-reminder>, local-command plumbing. Those blocks are cut; a slash command becomes
 # "/command args" and a ! bash line "! command". Empty means nothing human: skip the prompt.
@@ -207,17 +250,95 @@ transcript_title() {
   done
 }
 
-# The user's typed prompts from the first $2 lines of transcript $1 (Claude Code's JSONL), one per
-# line, newlines inside a prompt as \001. Best effort: user lines that are tool results, meta,
-# subagent or compaction summaries are skipped, injected blocks cut (HUMAN_AWK); assistant text never read.
-transcript_prompts() {
+# The conversation in transcript $1 (Claude Code's JSONL): the person's typed prompts and Claude's replies, text only,
+# one record per line, tab-separated:
+#   P <turn> <timestamp> <prompt>   what the person typed (HUMAN_AWK), newlines as \001
+#   R <turn> <timestamp> <reply>    Claude's final text for a turn, still JSON-escaped
+# (the timestamp is the line's own, "-" when it has none).
+# $2: read only the first $2 lines (0 = all); $3: only the last $3 lines (0 = all); $4: keep the last $4 turns (0 = all).
+# A turn's reply is the assistant text after its last tool round (what the Stop hook calls last_assistant_message):
+# a tool result drops the text before it, and any other user line (a prompt, an injected notice) ends the reply.
+# Never read: tool calls and their input, tool results, thinking, subagent (sidechain) lines. Assistant lines are walked
+# as JSON, so only message.content[] blocks of type "text" count; huge lines without a text block are skipped unread.
+transcript_turns() {
   [ -f "$1" ] || return 0
-  head -n "${2:-0}" "$1" 2>/dev/null | awk "$HUMAN_AWK"'
+  _tt="$WF/tmp/turns.$$"
+  mkdir -p "$WF/tmp" 2>/dev/null
+  if [ "${2:-0}" -gt 0 ] 2>/dev/null; then head -n "$2" "$1"; elif [ "${3:-0}" -gt 0 ] 2>/dev/null; then tail -n "$3" "$1"; else cat "$1"; fi 2>/dev/null |
+    awk "$HUMAN_AWK"'
+    # Odd number of trailing backslashes: the quote that followed was escaped.
+    function bsodd(s) { return match(s, /\\+$/) && RLENGTH % 2 == 1 }
+    # Walk one JSON line: top-level type, isSidechain and timestamp, and the text of message.content[] text blocks
+    # (still escaped, joined by a blank line). Strings are found by splitting on quotes, so it is linear in the line.
+    function walk(s,   np, P, Q, m, k, str, j, seg, L, x, c, lit, d, ct, ek, key, inMsg, inC, inB, bt, bx) {
+      A_type = ""; A_side = 0; A_ts = ""; A_text = ""
+      np = split(s, P, "\"")
+      m = 1; Q[1] = P[1]; k = 2
+      while (k <= np) {
+        str = P[k]; k++
+        while (bsodd(str) && k <= np) { str = str "\"" P[k]; k++ }
+        Q[++m] = str
+        Q[++m] = (k <= np) ? P[k++] : ""
+      }
+      d = 0; inMsg = 0; inC = 0; inB = 0
+      for (j = 1; j <= m; j++) {
+        if (j % 2 == 0) {
+          str = Q[j]
+          if (ct[d] == "o" && ek[d]) { key[d] = str; continue }
+          if (d == 1 && key[1] == "type") A_type = str
+          else if (d == 1 && key[1] == "timestamp") A_ts = str
+          else if (d == 2 && inMsg && key[2] == "content") A_text = str
+          else if (d == 4 && inB && key[4] == "type") bt = str
+          else if (d == 4 && inB && key[4] == "text") bx = str
+          continue
+        }
+        seg = Q[j]; L = length(seg); lit = ""
+        for (x = 1; x <= L + 1; x++) {
+          c = (x <= L) ? substr(seg, x, 1) : " "
+          if (c ~ /[A-Za-z0-9.+-]/) { lit = lit c; continue }
+          if (lit != "") { if (d == 1 && key[1] == "isSidechain" && lit == "true") A_side = 1; lit = "" }
+          if (c == "{") {
+            d++; ct[d] = "o"; ek[d] = 1; key[d] = ""
+            if (d == 2 && key[1] == "message") inMsg = 1
+            if (d == 4 && inC) { inB = 1; bt = ""; bx = "" }
+          } else if (c == "[") {
+            d++; ct[d] = "a"
+            if (d == 3 && inMsg && key[2] == "content") inC = 1
+          } else if (c == "}") {
+            if (d == 4 && inB) { if (bt == "text" && bx != "") A_text = (A_text == "") ? bx : A_text "\\n\\n" bx; inB = 0 }
+            if (d == 2) inMsg = 0
+            d--
+          } else if (c == "]") {
+            if (d == 3) inC = 0
+            d--
+          } else if (c == ",") { if (ct[d] == "o") ek[d] = 1 }
+          else if (c == ":") { if (ct[d] == "o") ek[d] = 0 }
+        }
+      }
+    }
+    function stamp(s,   t) {
+      t = ""
+      while (match(s, /"timestamp"[ ]*:[ ]*"[0-9T:.Z+-]+"/)) { t = substr(s, RSTART, RLENGTH); s = substr(s, RSTART + RLENGTH) }
+      sub(/^"timestamp"[ ]*:[ ]*"/, "", t); sub(/"$/, "", t)
+      return t
+    }
+    function clip(s, n) { if (length(s) <= n) return s; s = substr(s, 1, n); if (match(s, /\\+$/) && RLENGTH % 2 == 1) s = substr(s, 1, length(s) - 1); return s }
+    function reply() { if (buf != "") print "R\t" turn "\t" (bts == "" ? "-" : bts) "\t" clip(buf, 40000); buf = "" }
+    BEGIN { turn = 0; buf = "" }
+    /"type"[ ]*:[ ]*"assistant"/ && /"type"[ ]*:[ ]*"text"/ {
+      walk($0)
+      if (A_type == "assistant") {
+        if (!A_side && A_text != "") { buf = (buf == "") ? A_text : buf "\\n\\n" A_text; bts = A_ts }
+        next
+      }
+    }
     !/"type"[ ]*:[ ]*"user"/ { next }
-    /"isMeta"[ ]*:[ ]*true/ || /"isSidechain"[ ]*:[ ]*true/ || /"isCompactSummary"[ ]*:[ ]*true/ { next }
-    /"tool_use_id"[ ]*:/ || /"toolUseResult"[ ]*:/ { next }
+    /"isSidechain"[ ]*:[ ]*true/ { next }
+    /"tool_use_id"[ ]*:/ || /"toolUseResult"[ ]*:/ { buf = ""; next }
     {
-      s = $0
+      reply()
+      if (/"isMeta"[ ]*:[ ]*true/ || /"isCompactSummary"[ ]*:[ ]*true/) next
+      s = $0; ts = stamp(s)
       if (!match(s, /"message"[ ]*:[ ]*\{/)) next
       s = substr(s, RSTART + RLENGTH)
       if (!match(s, /"content"[ ]*:[ ]*/)) next
@@ -236,8 +357,12 @@ transcript_prompts() {
       v = human(v)
       if (v ~ /^[ \001]*$/) next
       if (v ~ /^\[Request interrupted/ || v ~ /^Caveat: /) next
-      print v
-    }' | tail -n 50
+      turn++
+      print "P\t" turn "\t" (ts == "" ? "-" : ts) "\t" substr(v, 1, 40000)
+    }
+    END { reply() }' >"$_tt" 2>/dev/null
+  awk -F '\t' -v keep="${4:-0}" 'NR == FNR { if ($2 > max) max = $2; next } keep == 0 || $2 > max - keep' "$_tt" "$_tt" 2>/dev/null
+  rm -f "$_tt"
 }
 
 # Several short top-level fields at once from the JSON in file $1, one per line, reduced to
@@ -276,24 +401,6 @@ json_unescape() {
       gsub(/\001/, "\\", s)
       printf "%s", s
     }'
-}
-
-# The text of the last assistant message in transcript $1, still JSON-escaped (fallback when the
-# Stop hook had no last_assistant_message). Reads only the file's last 200 lines.
-transcript_last_assistant() {
-  [ -f "$1" ] || return 0
-  tail -n 200 "$1" 2>/dev/null | awk '
-    /"type"[ ]*:[ ]*"assistant"/ && !/"isSidechain"[ ]*:[ ]*true/ {
-      s = $0; t = ""
-      while (match(s, /"type"[ ]*:[ ]*"text"[ ]*,[ ]*"text"[ ]*:[ ]*"/)) {
-        s = substr(s, RSTART + RLENGTH)
-        if (!match(s, /^([^"\\]|\\.)*/)) break
-        t = (t == "") ? substr(s, 1, RLENGTH) : t "\\n" substr(s, 1, RLENGTH)
-        s = substr(s, RLENGTH + 1)
-      }
-      if (t != "") last = t
-    }
-    END { printf "%s", substr(last, 1, 4000) }'
 }
 
 # Set top-level string field $2 to $3 in the JSON file $1 (config.json), the way setup.sh merges its key: replace a
