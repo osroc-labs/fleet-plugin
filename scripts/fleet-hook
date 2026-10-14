@@ -85,8 +85,16 @@ SessionStart)
   ;;
 
 UserPromptSubmit)
+  # Only what the person typed: injected hand-backs, notifications and reminders are cut, and a prompt
+  # with nothing human left isn't logged (it still registers a session that was already running).
   P="$WF/tmp/prompt.$$"
-  json_get "$IN" prompt >"$P"
+  json_get "$IN" prompt | human_text >"$P"
+  if [ ! -s "$P" ]; then
+    rm -f "$P"
+    [ -f "$ST.opened" ] || { has_history && register ""; }
+    [ -s "$Q" ] && spawn_sender
+    exit 0
+  fi
   register "$(redact <"$P" | tr '\n' ' ' | json_text 80)"
   if [ -f "$ST.waiting" ]; then
     rm -f "$ST.waiting"

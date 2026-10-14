@@ -15,10 +15,9 @@ A berth is a simulator slot on a Mac in the user's Fleet. Everything goes throug
    - A build: zip the `.app`, get `upload_url`, PUT the zip there, then `install_app` with the `blobKey` and `launch_app` with the bundle id.
    - An Expo or Metro dev server, or any web page: `open_url` with the URL (`exp://…` or `https://…`). The berth can't reach `localhost` on this machine: if the `fleet` CLI is installed, `fleet expose <port>` gives a public URL to open instead.
 6. **Look, then act:** `screenshot` and actually look at it. `describe_ui` gives the elements and their ids; `tap` by id, `type_text`, `swipe`, `press_button`. Screenshot again after each step that changes the screen.
-7. **Release:** `release` when you're done, every time, even after a failure.
+7. **Release:** `release` when you're done, every time, even after a failure. If you started a voyage in step 2, `voyage_close` it too.
 
 Rules:
 - Always release the lease. A held berth blocks everyone else.
 - Pass an `op_id` on every step (a stable name such as `login-tap-1`), so a retry never taps twice.
 - Prefer `describe_ui` ids over coordinates.
-- Post what you saw with `voyage_log` (kind `state`, 280 characters or fewer), with the screenshot when it matters.

@@ -127,12 +127,92 @@ json_get() {
     }' "$1" 2>/dev/null
 }
 
+# awk functions shared by human_text and transcript_prompts: human(s) is what the person actually typed in prompt s
+# (newlines as \n or \001). Claude Code also submits injected text as prompts: subagent hand-backs (<agent-message>),
+# <task-notification>, <system-reminder>, local-command plumbing. Those blocks are cut; a slash command becomes
+# "/command args" and a ! bash line "! command". Empty means nothing human: skip the prompt.
+HUMAN_AWK='
+function h_open(s, tag,   off, p, c) {
+  off = 0
+  while ((p = index(substr(s, off + 1), "<" tag)) > 0) {
+    p += off
+    c = substr(s, p + length(tag) + 1, 1)
+    if (c == ">" || c == " " || c == "/" || c == "\n" || c == "\001" || c == "\t" || c == "\r") return p
+    off = p
+  }
+  return 0
+}
+function h_cut(s, tag,   a, rest, e, n) {
+  n = 0
+  while ((a = h_open(s, tag)) > 0 && n++ < 50) {
+    rest = substr(s, a)
+    e = index(rest, "</" tag ">")
+    if (e == 0) { s = substr(s, 1, a - 1); break }
+    s = substr(s, 1, a - 1) substr(rest, e + length(tag) + 3)
+  }
+  return s
+}
+function h_inner(s, tag,   a, rest, g, e) {
+  if (!(a = h_open(s, tag))) return ""
+  rest = substr(s, a); g = index(rest, ">"); if (!g) return ""
+  rest = substr(rest, g + 1); e = index(rest, "</" tag ">")
+  return e ? substr(rest, 1, e - 1) : rest
+}
+function h_trim(s) { sub(/^[ \t\r\n\001]+/, "", s); sub(/[ \t\r\n\001]+$/, "", s); return s }
+function h_line(s) { gsub(/[\t\r\n\001]+/, " ", s); s = h_trim(s); return (length(s) > 200) ? substr(s, 1, 200) : s }
+function human(s,   n, i, T, c, a, t) {
+  n = split("agent-message task-notification system-reminder local-command-caveat local-command-stdout local-command-stderr bash-stdout bash-stderr user-prompt-submit-hook teammate-message", T, " ")
+  for (i = 1; i <= n; i++) s = h_cut(s, T[i])
+  c = h_line(h_inner(s, "command-name"))
+  if (c != "") {
+    if (substr(c, 1, 1) != "/") c = "/" c
+    a = h_line(h_inner(s, "command-args"))
+    return (a != "") ? c " " a : c
+  }
+  c = h_line(h_inner(s, "bash-input"))
+  if (c != "") return "! " c
+  s = h_cut(h_cut(h_cut(s, "command-message"), "command-args"), "command-contents")
+  s = h_trim(s)
+  # Any other leading <hyphenated-tag>…</hyphenated-tag> block is plumbing too.
+  for (i = 0; i < 20 && match(s, /^<[a-z]+(-[a-z]+)+[ >\/\n\001]/); i++) {
+    t = substr(s, 2, RLENGTH - 2)
+    s = h_trim(h_cut(s, t))
+  }
+  return s
+}
+'
+
+# What the person typed, from the prompt on stdin (see HUMAN_AWK). Prints nothing when it was all injected text.
+human_text() {
+  awk "$HUMAN_AWK"'
+    { s = (NR > 1) ? s "\n" $0 : $0 }
+    END { printf "%s", human(s) }'
+}
+
+# The session's latest name from transcript $1, raw JSON-escaped: /rename's custom title, else Claude Code's
+# auto title (ai-title), else a summary line. Cheap: grep and tail.
+transcript_title() {
+  [ -f "$1" ] || return 0
+  for spec in custom-title:customTitle ai-title:aiTitle summary:summary; do
+    typ=${spec%%:*}
+    key=${spec#*:}
+    line=$(grep -E "\"type\"[ ]*:[ ]*\"$typ\"" "$1" 2>/dev/null | tail -n 1)
+    [ -n "$line" ] || continue
+    v=$(printf '%s\n' "$line" | awk -v key="$key" '
+      match($0, "\"" key "\"[ ]*:[ ]*\"") {
+        s = substr($0, RSTART + RLENGTH)
+        if (match(s, /^([^"\\]|\\.)*/)) printf "%s", substr(s, 1, RLENGTH)
+      }')
+    [ -n "$v" ] && { printf '%s' "$v"; return 0; }
+  done
+}
+
 # The user's typed prompts from the first $2 lines of transcript $1 (Claude Code's JSONL), one per
 # line, newlines inside a prompt as \001. Best effort: user lines that are tool results, meta,
-# subagent, compaction summaries or slash-command plumbing are skipped; assistant text never read.
+# subagent or compaction summaries are skipped, injected blocks cut (HUMAN_AWK); assistant text never read.
 transcript_prompts() {
   [ -f "$1" ] || return 0
-  head -n "${2:-0}" "$1" 2>/dev/null | awk '
+  head -n "${2:-0}" "$1" 2>/dev/null | awk "$HUMAN_AWK"'
     !/"type"[ ]*:[ ]*"user"/ { next }
     /"isMeta"[ ]*:[ ]*true/ || /"isSidechain"[ ]*:[ ]*true/ || /"isCompactSummary"[ ]*:[ ]*true/ { next }
     /"tool_use_id"[ ]*:/ || /"toolUseResult"[ ]*:/ { next }
@@ -153,8 +233,8 @@ transcript_prompts() {
       gsub(/\\n/, "\001", v); gsub(/\\t/, " ", v); gsub(/\\r/, "", v)
       gsub(/\\[bf]/, " ", v); gsub(/\\u[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]/, " ", v)
       gsub(/\002/, "\\", v)
+      v = human(v)
       if (v ~ /^[ \001]*$/) next
-      if (v ~ /^[ \001]*<(command-|local-command|system-reminder|bash-|task-notification)/) next
       if (v ~ /^\[Request interrupted/ || v ~ /^Caveat: /) next
       print v
     }' | tail -n 50
