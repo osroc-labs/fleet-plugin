@@ -19,7 +19,7 @@ Fleet is a dashboard and a set of commands for building with Claude Code. You ta
 
 - **Sessions:** every Claude Code session, named like it is in Claude, with the conversation and what it shipped. Pick any of them back up later.
 - **Inbox:** what's waiting on you: questions, permission prompts, options to pick, work to review.
-- **Prototypes:** side-by-side options to choose from before anything gets built.
+- **Prototypes:** side-by-side options to choose from before anything gets built, kept until you delete them. Share one with testers by link; they don't need an account.
 - **Projects:** your repos. A repo shows up on its own the first time you run Claude in it.
 - **Devices:** iPhone, iPad and Apple TV simulators on your Macs that Claude can use to look at and test your app.
 
@@ -45,7 +45,7 @@ Claude makes a branch, builds it, tests it and opens a pull request. You review 
 ```
 /fleet:prototype three ideas for the onboarding screen
 ```
-You get 2 to 4 options in Prototypes. Tap the one you like (or ask for another round); Claude builds your pick.
+In about ten minutes you get 2 to 4 options side by side on one page in Prototypes, with Claude's pick outlined. Tap the one you like (or ask for another round); Claude builds your pick.
 
 **"Something is broken."**
 ```
