@@ -132,10 +132,17 @@ It prints the saved settings (if any) and what the repo suggests: main branch, p
     "e2e": "pnpm e2e",
     "deploy": "pnpm run deploy",
     "deployPreview": null,
+    "restoreProduction": null,
     "logs": "npx wrangler tail --format pretty"
   },
   "gates": ["typecheck", "lint", "test", "build"],
   "previewUrl": null,
+  "preview": {
+    "labelEnv": null,
+    "stepsEnv": null,
+    "stepsFile": null,
+    "environment": { "url": null, "protected": true }
+  },
   "productionUrl": "https://example.com",
   "healthUrl": "https://example.com/api/health",
   "ios": {
@@ -158,13 +165,18 @@ It prints the saved settings (if any) and what the repo suggests: main branch, p
   "rules": ["Never push to main.", "Review runs after the user's green, not before."],
   "issues": { "labels": ["ready"], "parent": null, "milestone": null },
   "roadmap": "ROADMAP.md",
+  "verdicts": { "feed": null, "resolve": null, "owner": [] },
+  "feedback": { "feed": null, "resolve": null, "proposalLabel": "proposal" },
+  "board": null,
   "loop": {
     "mode": "ios",
     "lanes": 1,
     "maxLanes": 3,
     "maxWaiting": 3,
     "agentLimit": { "beforeHour": 17, "tz": "America/Denver", "before": 2, "after": 5 },
-    "localSimulators": 3
+    "localSimulators": 3,
+    "firstSliceMinutes": 15,
+    "checkInMinutes": 10
   },
   "verify": {
     "smoke": {
@@ -197,6 +209,12 @@ It prints the saved settings (if any) and what the repo suggests: main branch, p
 - `loop.mode` is `ios`, `web`, `api`, `cli` or `prototype-only`; `loop.lanes` is how many tasks run at once (each its own worktree, and simulator or dev server; older files say `loop.slots`) and `loop.maxLanes` the most the loop or the user's Loop tab may run (default 3); `loop.maxWaiting` caps how many tasks wait on the user's review before the loop stops starting new ones.
 - `loop.agentLimit` caps agents by the hour: `before` while the hour in `tz` (an IANA zone) is below `beforeHour` (0–23), else `after`. It counts every agent the loop runs, and the loop runs the lowest of it, `maxLanes` and what the Macs have free. `null`: no cap but those.
 - `loop.localSimulators` is the most simulators booted at once on this Mac (default 3); Fleet berths don't count.
+- `loop.firstSliceMinutes` (default 15) and `loop.checkInMinutes` (default 10): a lane pushes its first working slice and messages the conductor within `firstSliceMinutes`, then checks in every `checkInMinutes` (a push, `loop_lane` with `step`, `next`, `sha`, `unpushed`, and one line to the conductor). The Loop tab shows a lane at work as quiet after 15 minutes without one.
+- `preview` is how a preview build tells the user what it is and what to test (`fleet:loop` § 6). `labelEnv` and `stepsEnv` name the environment variables the build reads at build time: the loop sets the label (`<Environment> · <branch> · <short sha>`) and the test steps (a `## #<issue> <task>` section per task still waiting on the user) on `commands.deployPreview`; `stepsFile` is a path to write the steps to instead. After every preview publish the loop runs `ship.environmentCheck preview` (below), and a failure blocks telling the user; `commands.restoreProduction` puts back the last good production build if a preview ever lands there. `null` or no `preview`: the steps go to Fleet and chat only.
+- **The review environment is the user's** (`preview.environment`, `protected` defaults to `true`): no workflow resets, recreates, reseeds or deletes it, or points it at production data, and only the conductor (the loop's main session) deploys to it, never a lane agent.
+- `verdicts` lets the app send the user's green or red on a task: `feed` is a command printing open verdicts as JSON lines (`{ id, task, verdict, build, user, at, body }`), `resolve` a command taking an id (and an issue URL) that marks one handled, and `owner` the user ids or handles whose verdicts count. Only theirs, for the build under review, ever ships or fixes anything (`fleet:loop` § Verdicts and feedback from the app).
+- `feedback` is testers' feedback from the app: `feed` and `resolve` as above, and `proposalLabel` (default `proposal`) for additions from anyone but the user, which become issues for the user's yes, never builds.
+- `board` (`{ "issue": 12, "marker": "fleet-board" }`, or `null`): the issue where `fleet:loop` keeps one status comment, found by `<!-- marker -->` and edited in place on every move. A new session resumes from it, with or without a Fleet key.
 - `greenShips: true` means the user's **Ship it** on the Fleet dashboard is also their yes for production. Only set it when the user says so. Default `false`: Ship it approves the change, and you still ask once before production. With it on, `fleet:loop` merges and ships each task on its green, like a sprint where the user's device test is the sign-off.
 - `verify.smoke.production` (and `.preview`): a signed-in, read-only check after a deploy (`fleet:verify` § 3). `signIn` is a command or curl recipe, `checks` the read-only calls (`"GET /api/me"`; a non-`GET` listed here is declared read-only), `envVars` the **names** of the variables holding the smoke account's credentials, never the values. The account never writes.
 - `verify.absentInProduction`: strings only a preview build shows (a badge, the staging host); production verify checks they're absent.

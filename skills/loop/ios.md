@@ -77,11 +77,28 @@ The dev client is for building, not sign-off: native interactions (context menus
 ## 6. Up for review (the loop's § 6, on iOS)
 
 - `voyage_stage` `review` with `media` as `capture_lease_id` of the berth (captured now, copied, so they outlive it), or uploaded screenshots (`blob_key`), up to 6. Then **release the lease**.
-- The user tests on their own phone when the repo has a preview (`commands.deployPreview`, e.g. an over-the-air update to a preview channel): publish from a clean, pushed tree (`git status --short` empty, `HEAD` pushed; never chain a publish after a merge without checking it), smoke it on the replica (§ 5), and add "On your phone:" with how to get it and the build label to look for. A preview channel holds one update: with several lanes, publish `loop/review` (`fleet:loop` § Lanes).
+- The user tests on their own phone when the repo has a preview (`commands.deployPreview`, e.g. an over-the-air update to a preview channel): publish from a clean, pushed tree (`git status --short` empty, `HEAD` pushed; never chain a publish after a merge without checking it), with the label and steps in the build (§ 8), run `ship.environmentCheck preview`, smoke it on the replica (§ 5), and open the message with "**On your phone:** <label>" and how to get it. A preview channel holds one update: with several lanes, publish `loop/review` (`fleet:loop` § Lanes).
 - With `greenShips: true`, the user's Ship it after testing on their phone is the yes to merge and ship that task (an over-the-air update to production follows the repo's deploy, from the main branch).
-- Native changes (a new native module, entitlements, widgets) can't ride an over-the-air update: collect them on one branch for the next store build, which reaches every tester and needs the user's yes; keep the loop busy with tasks that can ship over the air meanwhile.
+- Native changes (a new native module, entitlements, widgets) can't ride an over-the-air update: run `ship.nativeCheck` before publishing (it fails when the change needs a new store build). A task that fails it doesn't go out as an update: collect such tasks on one branch for the next store build (`commands.storeBuild`), which reaches every tester and needs the user's yes (`fleet:ship` § 3); keep the loop busy with tasks that can ship over the air meanwhile.
 
 ## 7. Clean up (every report, every stop)
 
 - Every lease released. Metro, tunnels (`fleet expose`, `cloudflared`) and background shells stopped. Local simulators you booted shut down (`xcrun simctl shutdown <udid>`) as soon as no queued task needs them; when the loop is idle, all of them.
 - Check: `xcrun simctl list devices booted`, and `lsof -iTCP -sTCP:LISTEN -n -P | grep -E ':(808[1-6])'` show nothing of yours that isn't still in use.
+
+## 8. The label and the test steps inside the build
+
+The user should always know what they're running and what to test, on the device itself. Two values are set at build time, by name from the settings' `preview` block, on the `commands.deployPreview` command:
+
+- **`preview.labelEnv`** (e.g. `EXPO_PUBLIC_PREVIEW_LABEL`): `<Environment> · <branch> · <short sha>`, such as `Staging · loop/review · 3f9c2a1`. The same string opens the message to the user.
+- **`preview.stepsEnv`** (e.g. `EXPO_PUBLIC_TEST_NOTES`): the steps file's text (`fleet:loop` § 6 step 2: a `## #<issue> <task>` section per task still waiting, newest first). Or `preview.stepsFile`: a path the build bundles, written before the publish.
+
+For example, with Expo updates:
+
+```sh
+SHA=$(git rev-parse --short HEAD)
+EXPO_PUBLIC_PREVIEW_LABEL="Staging · $(git branch --show-current) · $SHA" \
+  EXPO_PUBLIC_TEST_NOTES="$(cat <scratch>/test-notes.md)" <commands.deployPreview>
+```
+
+**Wiring it in the app** (once, on its own branch, only when the user wants it): read the two values at build time; show the label small somewhere a tester can find it (a settings row, a corner badge in preview builds only); and draw the steps in a small "Testing now" panel: each `## #<issue> <task>` a section, each `1. ` a numbered row, each `> ` its "you should see" line under it, `Green:` the bar. Production builds never set either value, so nothing shows there. A Green and a Red button per section that send `{ task: <issue>, verdict, build: <label> }` to the app's feedback store make the user's verdicts flow back (`verdicts` in the settings, `fleet:loop` § Verdicts and feedback from the app).
