@@ -66,7 +66,7 @@ The mode is detected from the repo when you leave it out, and saved once confirm
 | `/fleet:loop [mode] [n]` | Keeps building on the project: pick, prototype if open-ended, build, verify, review, your review, ship on green, next; modes `ios`, `web`, `api`, `cli`, `prototype-only`; `n` tasks at once | runs until you say stop |
 | `/fleet:ios-loop` | Same as `/fleet:loop ios` | |
 | `/fleet:idea` | A brain dump becomes researched, scoped GitHub issues (existing ones merged, not duplicated) | prototype or build |
-| `/fleet:prototype` | 2–4 genuinely different options side by side on one page per topic (or real simulator screenshots), recommended one outlined, in about ten minutes; published to Prototypes, continuing an earlier round when there is one; waits for your pick (Build, Another round, Tuck away) | build the pick |
+| `/fleet:prototype` | 2–4 genuinely different options side by side on one page per topic (or real simulator screenshots), recommended one outlined, in about ten minutes; published to Prototypes, continuing an earlier round when there is one; waits for your pick (Build, Another round, Park, or Snooze until later) | build the pick |
 | `/fleet:build` | Builds a feature on its own branch with tests and a draft PR; hands iPhone work to the loop's ios mode | verify |
 | `/fleet:verify` | The repo's tests and gates plus a real look (a page or a simulator, with screenshots); on production, a signed-in read-only smoke check; known flakes tracked, not rerun blindly; pass or fail, never claimed unchecked | review |
 | `/fleet:review` | An independent review (correctness, security, regressions, data cost, rollout), fixed on the branch; `round <sha>` checks just a fix round against what you asked for | ship |

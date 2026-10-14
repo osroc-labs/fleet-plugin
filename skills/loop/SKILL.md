@@ -105,7 +105,7 @@ A task is open-ended when it leaves a visible choice undecided: a layout, a cont
 
 - **Build `<option>`:** § 3 with the option's title, summary and media.
 - **Another round (notes):** `fleet:prototype` again on the same voyage.
-- **Tuck away:** comment on the issue, close nothing else, next task.
+- **Park** (older word: tuck away): comment on the issue, close nothing else, next task. **Snoozed until <time>:** the user snoozed it; leave it, work on other tasks, and check it after that time.
 
 A choice of **feel** (motion, timing) goes on the prototype page like any other (`fleet:prototype`: options are pages, animated where it matters). Only when it truly can't be judged off the device (gesture physics, haptics) in `ios` mode, build two or three variants behind a flag and let the user switch them in review; delete the losers after the pick.
 
@@ -151,7 +151,7 @@ Every verdict, from any source, is **for one sha**: the one under review when it
 
 - **Ship it** (or green in chat, or an owner's green from the app): the change is right. **Solidify** it, off the user's clock (in a background agent when other work is running; brief it as § Lanes 4 says, as a `judgment` job): merge the main branch in, cover it (unit tests for the logic, the repo's flow tests for the changed flow, a regression test for every Fix note on the issue), delete leftovers (losing variants, flags, scratch), and run every gate. Then the full `verify`, `review` on what solidifying changed, and `ship` (each the step's skill, § Step skills). **Before merging, read the newest verdict again** and check the branch: the reviewed sha must be its head, or the only commits since are solidify's (tests, cleanup, a merge of the main branch: `git log --oneline <reviewed sha>..HEAD`). Anything the user would see that they didn't review goes back up for review (§ 6) instead of shipping. **The yes:** with `greenShips: true` in the settings, Ship it is the yes for production, and the ship step goes ahead. Otherwise it asks once in chat; ask for several ready tasks in one line, and keep looping while the user decides.
 - **Fix (notes)** (or red in chat): write the notes on the issue or PR (they become regression tests in solidify), then back to § 3 (the round, with the notes) on the same branch and voyage. Before § 6 stages it again, a **round review** runs alongside the quick check: `fleet:review <branch> round <the sha the user last reviewed> from fleet:loop` (that sha is on the task voyage's last review stage), handed the notes and the user's messages this round verbatim; its ✗ rows are fixed first. Skip it only for a copy-only change of a line or two. One round per review, minutes not hours.
-- **Tuck away:** leave the PR as a draft, comment on the issue, next task.
+- **Park** (older word: tuck away): leave the PR as a draft, comment on the issue, next task. **Snoozed until <time>:** leave it and check back after that time.
 
 Record taste the user states ("less bouncy", "too busy") in the repo's design doc on the branch. Each verdict also goes on the board and the task's issue (§ The board).
 
@@ -186,7 +186,7 @@ With `skills.round` mapped (`/ios-loop`, say), that skill does each task's build
 
 ### prototype-only
 
-Rounds of options and no code. Each task goes through § 1 and § 2 only. On **Build `<option>`**, record the pick on the issue (a comment with the option, its summary and the voyage link) and `voyage_log` a `handoff` on the task voyage ("Picked B; build it with `/fleet:loop <issue>`"), then leave the voyage open for a later build loop to resume. **Another round** and **Tuck away** work as in § 2. Several rounds can be out at once, up to `loop.maxWaiting`.
+Rounds of options and no code. Each task goes through § 1 and § 2 only. On **Build `<option>`**, record the pick on the issue (a comment with the option, its summary and the voyage link) and `voyage_log` a `handoff` on the task voyage ("Picked B; build it with `/fleet:loop <issue>`"), then leave the voyage open for a later build loop to resume. **Another round**, **Park** and a snooze work as in § 2. Several rounds can be out at once, up to `loop.maxWaiting`.
 
 ## Lanes: several tasks at once (`/fleet:loop 2`)
 
