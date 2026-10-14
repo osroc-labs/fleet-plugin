@@ -9,7 +9,7 @@ No binary to install: the hooks and helpers are small POSIX `sh` scripts that us
 ## The loop
 
 ```
-/fleet:loop [mode] [slots]          until you say stop, or the queue is empty
+/fleet:loop [mode] [lanes]          until you say stop, or the queue is empty
 
  ┌─▶ 1. pick the next task   your Fleet Inbox and orders → GitHub issues → the roadmap
  │        │ open-ended?
@@ -80,7 +80,18 @@ The mode is detected from the repo when you leave it out, and saved once confirm
 
 Each workflow ends by naming the next step, and goes straight on when you've said to keep going ("build it and take it to review"). The rules they all share: verify before claiming anything works, never push to the main branch (branches and PRs only), production needs your explicit yes, every simulator lease is released and everything started is stopped, and updates stay brief. The shared rules live in [`skills/fleet-workflows/SKILL.md`](skills/fleet-workflows/SKILL.md).
 
-**Your repo comes first.** If a repo has its own skill for a step (its own `verify`, `deploy`, `review`…), Fleet uses that one. Fleet's workflows read the repo (its CLAUDE.md, scripts, `app.json`, `ios/`, CI and deploy config) to work out the commands, confirm them with you once, and save them in **`.fleet/workflow.json`**: test, build and deploy commands, gates, the iOS scheme and bundle id, preview and production URLs. It holds no secrets; commit it so your team shares it. The loop reads its settings there too: `loop.mode`, `loop.slots`, and where tasks come from (`issues.labels`, `issues.milestone`, `roadmap`). `greenShips: true` there makes **Ship it** on a Fleet review your yes for production too, so the loop ships each task on your green; it's off unless you turn it on.
+**Your repo comes first.** The loop (its queue, lanes and Inbox) always runs in Fleet, and each step runs your repo's skill for it when there is one: the one mapped in `skills` in `.fleet/workflow.json`, else a same-named skill (your own `verify`, `deploy`, `review`…), else Fleet's. Fleet's workflows read the repo (its CLAUDE.md, scripts, `app.json`, `ios/`, CI and deploy config) to work out the commands, confirm them with you once, and save them in **`.fleet/workflow.json`**: test, build and deploy commands, gates, the iOS scheme and bundle id, preview and production URLs. It holds no secrets; commit it so your team shares it. The loop reads its settings there too:
+
+| Key | What it does |
+| --- | --- |
+| `loop.mode`, `loop.lanes`, `loop.maxLanes` | The mode, lanes to start with, and the most lanes allowed (default 3). |
+| `loop.agentLimit` | Agents by the hour, e.g. `{ "beforeHour": 17, "tz": "America/Denver", "before": 2, "after": 5 }`: 2 before 5 PM Mountain, 5 after. |
+| `loop.maxWaiting`, `loop.localSimulators` | Tasks waiting on your review before it stops starting more (3); simulators booted on this Mac (3). |
+| `issues.labels`, `issues.parent`, `issues.milestone`, `roadmap` | Where tasks come from: labeled issues (only an epic's sub-issues with `parent`), then the roadmap. |
+| `skills` | Your skill for each step: `round` (one task's build, check and preview), `verify`, `review`, `ship`, `prototype`, `idea`, `triage`, e.g. `{ "round": "/ios-loop", "ship": "/deploy" }`. It's called with `from fleet:loop`, does one task, and returns. |
+| `rules` | Your rules for the loop, one sentence each; it prints them at the start and follows them. |
+
+`greenShips: true` there makes **Ship it** on a Fleet review your yes for production too, so the loop ships each task on your green; it's off unless you turn it on.
 
 **No Fleet account?** The workflows still run: options stay as local files, simulators are local and headless, and decisions happen in chat.
 

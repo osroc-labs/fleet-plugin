@@ -40,7 +40,8 @@ Fleet's workflows are the chain that ships a change: **idea → prototype → bu
 - If the user already said to keep going ("build it and ship it", "take it all the way"), call the next skill directly with the Skill tool instead of stopping. Otherwise stop and offer it.
 - **Called by `fleet:loop`** (the input says `from fleet:loop`): do the step, skip your own waiting (the loop checks decisions between tasks) and your own hand-off, and return to the loop with what it needs: branch, sha, PR, voyage id, evidence.
 - Hand context forward explicitly: the branch, the PR, the issue, the Fleet voyage id (if there is one) and the settings below. Never make the next step rediscover them.
-- **The repo's own skills come first.** `fleet-repo` (below) lists the repo's `.claude/skills` and `.claude/commands`. If the repo has its own skill for this step (its own `verify`, `deploy`, `review`, `prototype`…), use that one instead and say so in one line. Fleet's skills are the fallback, not a replacement.
+- **The repo's own skills come first.** `fleet-repo` (below) lists the repo's `.claude/skills` and `.claude/commands`, and the settings' `skills` map. For a step, use `skills[step]` when it's set, else the repo's same-named skill (its own `verify`, `deploy`, `review`, `prototype`…), and say so in one line. Fleet's skills are the fallback, not a replacement. Called `from fleet:loop`, the repo's skill does one task's step and returns; the loop itself (queue, lanes, Inbox) always stays in `fleet:loop`.
+- **The repo's `rules`** (settings) are followed by every workflow, like its CLAUDE.md.
 
 ## Rules for every workflow
 
@@ -107,9 +108,26 @@ It prints the saved settings (if any) and what the repo suggests: main branch, p
     "urlScheme": "example",
     "simulator": "iphone"
   },
-  "issues": { "labels": ["ready"], "milestone": null },
+  "skills": {
+    "round": "/ios-loop",
+    "verify": "/verify",
+    "review": "/review",
+    "ship": "/deploy",
+    "prototype": "/prototype",
+    "idea": "/roadmap-idea",
+    "triage": "/triage"
+  },
+  "rules": ["Never push to main.", "Review runs after the user's green, not before."],
+  "issues": { "labels": ["ready"], "parent": null, "milestone": null },
   "roadmap": "ROADMAP.md",
-  "loop": { "mode": "ios", "slots": 1, "maxWaiting": 3 },
+  "loop": {
+    "mode": "ios",
+    "lanes": 1,
+    "maxLanes": 3,
+    "maxWaiting": 3,
+    "agentLimit": { "beforeHour": 17, "tz": "America/Denver", "before": 2, "after": 5 },
+    "localSimulators": 3
+  },
   "greenShips": false,
   "confirmedAt": "2026-01-01"
 }
@@ -117,8 +135,13 @@ It prints the saved settings (if any) and what the repo suggests: main branch, p
 
 - `ios.kind` is one of `expo-go`, `expo-dev-client`, `react-native`, `native`, or `none`.
 - `gates` are the commands that must pass before anything is called done (keys into `commands`).
-- `issues` and `roadmap` are where `fleet:loop` looks for tasks, after the user's Fleet Inbox and orders: open issues with those labels (and that milestone), then the roadmap (a file, or an epic issue number).
-- `loop.mode` is `ios`, `web`, `api`, `cli` or `prototype-only`; `loop.slots` is how many tasks run at once (each its own simulator or dev server); `loop.maxWaiting` caps how many tasks wait on the user's review before the loop stops starting new ones.
+- `commands` is an open map: add any command the repo has (`format`, `e2eIos`, `deployStaging`…); `gates` name its keys.
+- `skills` maps a step to the repo's own skill: `round` (a task's build, quick check and preview, as one call), `verify`, `review`, `ship`, `prototype`, `idea`, `triage`. Each value is the skill as typed (`/ios-loop`). Steps left out use the repo's same-named skill, else Fleet's. A mapped skill must accept `from fleet:loop` (do one task's step, then return); `fleet:loop` never hands it the whole loop.
+- `rules` is a list of the repo's rules for the loop, one sentence each. `fleet:loop` prints them at the start and follows them; they outrank Fleet's skills, like the repo's CLAUDE.md.
+- `issues` and `roadmap` are where `fleet:loop` looks for tasks, after the user's Fleet Inbox and orders: open issues with those labels (and that milestone), then the roadmap (a file, or an epic issue number such as `"#12"`). `issues.parent` (an issue number) limits issues to that epic's open sub-issues.
+- `loop.mode` is `ios`, `web`, `api`, `cli` or `prototype-only`; `loop.lanes` is how many tasks run at once (each its own worktree, and simulator or dev server; older files say `loop.slots`) and `loop.maxLanes` the most the loop or the user's Loop tab may run (default 3); `loop.maxWaiting` caps how many tasks wait on the user's review before the loop stops starting new ones.
+- `loop.agentLimit` caps agents by the hour: `before` while the hour in `tz` (an IANA zone) is below `beforeHour` (0–23), else `after`. It counts every agent the loop runs, and the loop runs the lowest of it, `maxLanes` and what the Macs have free. `null`: no cap but those.
+- `loop.localSimulators` is the most simulators booted at once on this Mac (default 3); Fleet berths don't count.
 - `greenShips: true` means the user's **Ship it** on the Fleet dashboard is also their yes for production. Only set it when the user says so. Default `false`: Ship it approves the change, and you still ask once before production. With it on, `fleet:loop` merges and ships each task on its green, like a sprint where the user's device test is the sign-off.
 - Leave anything unknown `null`. Never put a secret in this file.
 
