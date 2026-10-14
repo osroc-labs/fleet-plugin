@@ -1,12 +1,22 @@
 {
   "name": "osroc",
-  "owner": { "name": "osroc-labs", "url": "https://fleet.osroc.io" },
+  "owner": {
+    "name": "osroc-labs",
+    "url": "https://fleet.osroc.io"
+  },
   "description": "Plugins from osroc-labs.",
   "plugins": [
     {
       "name": "fleet",
       "source": "./",
-      "description": "A perpetual build loop for Claude Code (/fleet:loop: ios, web, api, cli and prototype-only modes) and the workflows it conducts (idea, prototype, build, verify, review, ship, triage), your Fleet's simulators and prototypes, and a quiet session log."
+      "description": "A perpetual build loop for Claude Code (/fleet:loop: ios, web, api, cli and prototype-only modes) and the workflows it conducts (idea, prototype, build, verify, review, ship, triage), your Fleet's simulators and prototypes, and a quiet session log.",
+      "version": "0.7.1"
+    },
+    {
+      "name": "fleet-social",
+      "source": "./social",
+      "description": "The social side of Fleet without the toolkit: your boat sails in World next to your friends' while you work. Presence only (the project's name, active or idle, an optional local mood score); never prompts, code or logs, no MCP, no skills, nothing in Claude's context. Sign in with /fleet-social:login.",
+      "version": "0.1.0"
     }
   ]
 }

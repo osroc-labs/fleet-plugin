@@ -106,6 +106,8 @@ No terminal needed.
 
 That's it. Type `/fleet` to see the workflows. Your sessions now show up on your dashboard. Until you log in, the session log stays silent, and the commands that need Fleet say "Run /fleet:login first."
 
+**Just want to hang out with friends?** See [Fleet Social](#fleet-social-just-hang-out): presence only, no toolkit.
+
 **Or by hand:** make a key at [fleet.osroc.io/app/keys](https://fleet.osroc.io/app/keys), then in Terminal run `curl -fsSL https://fleet.osroc.io/setup.sh | sh -s -- fk_your_key`. It saves the same `~/.fleet/config.json`, adds `export FLEET_KEY=…` to your shell's rc file, and checks that the fleet answers. Then the two `/plugin` lines; skip `/fleet:login`.
 
 **Sessions that were already open** sign on by themselves too. Closing the `/plugin` panel reloads plugins in that session, so its hooks start right away. If Claude Code asks first (a reload can cost one uncached request), run `/reload-plugins`. Other sessions you had open show "Plugins changed. Run /reload-plugins to activate"; run it, or just resume them later. Either way, the session registers on its next prompt or tool call, and its earlier prompts are backfilled into the log.
@@ -128,6 +130,34 @@ That's it. Type `/fleet` to see the workflows. Your sessions now show up on your
 - **Backfill:** when a session that was already running registers, the sender reads only your typed prompts from its local transcript (the last 50), redacts them and logs them. It's best effort: it skips tool results and anything that isn't a typed prompt, with the same filter as live prompts.
 - **Redaction happens on your machine, before anything is sent.** It covers `sk-…` keys, Stripe keys, Fleet `fk_`/`fr_`/`fj_` keys, GitHub `ghp_`/`gho_`/`github_pat_` tokens, Slack `xox…` tokens, AWS access and secret keys, Google `AIza…` keys, JWTs, `Bearer …` values, `user:pass@` in URLs, `password=` values, PEM private keys, and `KEY=value` lines with secret-ish names (`*_KEY`, `*TOKEN*`, `*SECRET*`, `*PASSWORD*` and friends). It's pattern-based, so don't paste secrets anyway.
 - **Where things live:** `~/.fleet/config.json` (your key; `/fleet:login` keeps a `login.pending` file next to it only while it waits), and `~/.fleet/wayfind/`: the queue waiting to send, session-to-voyage links, and `log` for any errors. Hooks never touch the network; a detached sender does, with retries.
+
+## Fleet Social: just hang out
+
+Want the social side (your boat in World next to your friends', moving while you work) without the toolkit? Install **`fleet-social`** instead. It's a separate, tiny plugin in the same marketplace: four presence hooks and a login command. No MCP server, no skills, no binary, and nothing ever printed into Claude's context.
+
+**Install**, in Claude Code (sign in at [fleet.osroc.io](https://fleet.osroc.io/app) first, or open the invite link a friend sent you):
+
+```
+/plugin marketplace add osroc-labs/fleet-plugin
+/plugin install fleet-social@osroc
+/fleet-social:login
+```
+
+`/fleet-social:login` works like `/fleet:login`: a code, a page to approve it, and the key saved to `~/.fleet/config.json`. Your dashboard then shows World, Friends and Settings.
+
+**What's sent**, to `POST /api/social/presence`, about once a minute while you work plus right away when a session starts or ends:
+
+| Field | What it is |
+| --- | --- |
+| `project` | The project's display name: the repo's folder name (the main checkout's, for a worktree), else the folder's. Never a path, never `owner/repo`. Friends don't see it either: they see your boat, and a name only if you rename the project yourself. |
+| `state` | `active` (you just sent a prompt), `idle` (Claude finished; waiting for you) or `ended` (no session left open on this computer) |
+| `mood` | Optional: a number from −2 to 2, the average of the session's last few prompt scores. The score is worked out on your computer from what you typed (frustrated or delighted phrases, swearing, capitals: the same heuristic as the Fleet CLI). Turn it off with `"mood": "off"` in `~/.fleet/config.json` or `FLEET_SOCIAL_MOOD=off`. |
+
+**What's never sent:** your prompts, Claude's replies, code, file names, paths, branch names, the repo's remote, transcripts or logs. The hook reads a prompt into memory only to score it, and keeps just the number. On disk, Fleet Social keeps one small file per open session in `~/.fleet/social/sessions/` (the project's name, active or idle, the time, the scores), what it last sent, and a `log` for errors.
+
+**Quiet by design.** The hooks never touch the network (a detached sender does), never print and always exit 0. With no key they do nothing. If your Fleet server doesn't know Fleet Social yet, the sender rests for an hour and tries again later.
+
+**Upgrading to the full toolkit:** `/plugin install fleet@osroc`. It uses the same key: same account, same friends, same boat, and your dashboard switches to the full view on its own the first time the full plugin checks in (or switch it yourself in Settings › Account). Fleet Social then goes quiet for every session the full plugin reports, so nothing is counted twice; uninstall it when you like with `/plugin uninstall fleet-social@osroc` and `rm -rf ~/.fleet/social`.
 
 ## Uninstall
 

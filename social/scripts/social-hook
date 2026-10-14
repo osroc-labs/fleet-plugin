@@ -1,0 +1,77 @@
+#!/bin/sh
+# Fleet Social's presence hook: social-hook <Event>, with Claude Code's hook JSON on stdin.
+# It reads the session id and folder (and, for a prompt, scores the prompt's mood right here), keeps one small file per
+# open session in ~/.fleet/social/sessions/, and starts the detached sender. It never touches the network, never prints
+# anything (nothing reaches Claude's context) and always exits 0. The prompt's text is never written anywhere: it is
+# read from stdin into memory, scored, and only the score (a number from -2 to 2) is kept.
+#
+# Session file, one value per line: the project's display name, active|idle, the last event (epoch seconds), the last
+# few mood scores (space-separated, newest last).
+EVENT="${1:-}"
+HERE=$(dirname "$0")
+. "$HERE/lib.sh" 2>/dev/null || { cat >/dev/null; exit 0; }
+
+# No key: do nothing, silently.
+if [ -z "${FLEET_KEY:-}" ] && ! grep -q '"key"' "$CONFIG" 2>/dev/null; then
+  cat >/dev/null
+  exit 0
+fi
+
+INPUT=$(cat 2>/dev/null)
+SID=$(printf '%s' "$INPUT" | json_get session_id)
+case "$SID" in "" | *[!A-Za-z0-9_-]*) exit 0 ;; esac
+mkdir -p "$SOC/sessions" 2>/dev/null || exit 0
+S="$SOC/sessions/$SID"
+
+# The full fleet plugin is reporting this session: it already moves your boat, so stay out of its way.
+if full_reports "$SID"; then
+  rm -f "$S"
+  exit 0
+fi
+
+spawn_sender() {
+  nohup sh "$HERE/social-send" </dev/null >/dev/null 2>&1 &
+}
+
+# Write the session file: $1 project, $2 state, $3 moods.
+save() {
+  printf '%s\n%s\n%s\n%s\n' "$1" "$2" "$(date +%s)" "$3" >"$S.tmp.$$" 2>/dev/null && mv -f "$S.tmp.$$" "$S" 2>/dev/null
+}
+
+project=$(sed -n 1p "$S" 2>/dev/null)
+moods=$(sed -n 4p "$S" 2>/dev/null)
+if [ -z "$project" ]; then
+  project=$(project_of "$(printf '%s' "$INPUT" | json_get cwd)")
+fi
+
+case "$EVENT" in
+SessionStart)
+  # Open, waiting for the first prompt. Start and end always send right away.
+  save "$project" idle "$moods"
+  : >"$SOC/force" 2>/dev/null
+  spawn_sender
+  ;;
+
+UserPromptSubmit)
+  # Activity only. The mood score is worked out here from the typed prompt and the text goes no further. Text Claude
+  # Code injects (it starts with a tag: <task-notification>, <system-reminder>…) isn't scored.
+  if mood_on; then
+    m=$(printf '%s' "$INPUT" | json_get prompt | awk 'NR == 1 && /^[ \t]*</ { skip = 1 } { if (!skip) print }' | mood_score)
+    case "$m" in -2 | -1 | 0 | 1 | 2) moods=$(printf '%s %s' "$moods" "$m" | awk '{ s = ""; for (i = (NF > 10 ? NF - 9 : 1); i <= NF; i++) s = s (s == "" ? "" : " ") $i; print s }') ;; esac
+  fi
+  save "$project" active "$moods"
+  spawn_sender
+  ;;
+
+Stop)
+  save "$project" idle "$moods"
+  spawn_sender
+  ;;
+
+SessionEnd)
+  rm -f "$S"
+  : >"$SOC/force" 2>/dev/null
+  spawn_sender
+  ;;
+esac
+exit 0
