@@ -2,6 +2,10 @@
 
 One line per release of the `fleet` plugin, newest first, with the osroc-labs/fleet issues it closes. Update with `claude plugin marketplace update osroc && claude plugin update fleet@osroc`, then start a new session. Server-side changes (new MCP tools, dashboard) go live on fleet.osroc.io without a plugin update; a new session picks up new tools.
 
+## 0.8.7
+- Berths: device builds (`.ipa`) are refused in plain words; `fleet build-sim` makes a simulator build for Expo projects with no EAS simulator build (prebuild, xcodebuild, zip, optional install) (#16).
+- `run_flow secrets`: pass names only; the runner Mac reads the values (`fleet secrets set|list|rm|import`) and masks them (#17). Needs runner 0.6.0 (`fleet runner update` on each Mac).
+
 ## 0.8.6
 - `/fleet:help` can be run by Claude (no longer user-only), so "run /fleet:help and summarize what changed" works. This changelog ships with the plugin. (#19)
 
