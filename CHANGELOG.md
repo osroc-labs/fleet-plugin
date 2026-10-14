@@ -2,6 +2,9 @@
 
 One line per release of the `fleet` plugin, newest first, with the osroc-labs/fleet issues it closes. Update with `claude plugin marketplace update osroc && claude plugin update fleet@osroc`, then start a new session. Server-side changes (new MCP tools, dashboard) go live on fleet.osroc.io without a plugin update; a new session picks up new tools.
 
+## 0.8.12
+- `voyage_stage` is for prototypes only; a plain session is refused instead of becoming a prototype (#22). `prototype_import` can `replace` an older import (by slug or `replace_id`), and the new `prototype_archive` tool archives or restores one (#20).
+
 ## 0.8.11
 - More iPhones: each Mac can run iPhone 18 Pro Max, iPhone 17e and iPhone Air next to the 18 Pro (Mac page › Simulators by type). Lease them with `iphone:pro max`, `iphone:17e`, `iphone:air`; plain `iphone` stays the 18 Pro. Needs runner 0.7.0 (`fleet runner update`).
 
