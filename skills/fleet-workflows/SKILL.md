@@ -100,10 +100,10 @@ Fleet is where the user sees and decides: **Prototypes** (options to pick), **In
 | --- | --- |
 | voyage | A tracked task. A prototype or review lives on a voyage started with `course: "prototype"`. |
 | berth | A simulator on one of the user's Macs. `lease` it, use it, `release` it. |
-| stage | Where a prototype voyage is: charting → waiting (the user picks) → building → review (the user's green) → built; or `reference` (a page published for reading, closed at once). Every move can carry a one-line `status_note`, shown on cards, the index and share links; `feedback` is the user's note on a round. |
+| status | Where a prototype is, Saga's seven words: `waiting` (options up: the user picks), `feedback` (the user's notes: next round coming), `building` (picked, being built), `review` (built, on staging or the phone: the user's green), `built` (shipped), `parked` (set aside), `reference` (a page to read, nothing to decide). Every move carries a one-line `status_note`, shown on cards, the index and share links. The tools' older `stage` field says the same with `charting` (before the first round) and `tucked_away` (parked). The user can **snooze** a prototype until a time: it leaves their Inbox, the index shows `snoozedUntil`, and `await_decision` says "snoozed until …"; it comes back on its own. |
 
 - Start a voyage only inside these workflows, when the step needs one (options to pick, a simulator, a review on the dashboard). Never for ordinary work: sessions are logged automatically, outside your context.
-- **Decisions are the user's**, on the dashboard (Build A–D, Another round, Tuck away; then Ship it or Fix). There's no tool to decide for them. `await_decision` waits for it.
+- **Decisions are the user's**, on the dashboard (Build A–D, Another round, Park or Snooze; then Ship it or Fix). There's no tool to decide for them. `await_decision` waits for it.
 - Every mutating tool call takes an `op_id`: a stable name for that step (`proto-round1-upload-A`, `ios-smoke-tap-2`), so a retry never runs twice.
 - No Fleet key yet (`Run /fleet:login first.`)? The workflows still work without Fleet: show options as local files or links, use local simulators, and ask in chat. Mention `/fleet:login` once.
 
