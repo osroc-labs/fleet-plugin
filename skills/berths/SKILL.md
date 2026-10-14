@@ -9,7 +9,7 @@ A berth is a simulator slot on a Mac in the user's Fleet. Everything goes throug
 
 1. **See what's free:** `fleet_status`. Berths that are `ashore` are free; `adrift` means that Mac is offline.
 2. **Have a voyage:** this session's is the first line of `~/.fleet/wayfind/sessions/${CLAUDE_SESSION_ID}` (read it); without one, `voyage_start` with `repo` from `git remote get-url origin`.
-3. **Lease:** `lease` with `voyage_id` and `target` `iphone`, `ipad` or `appletv` (narrow it with `iphone:17 pro` or `@iOS 26`). Leasing again on the same voyage gives the same berth back.
+3. **Lease:** `lease` with `voyage_id` and `target` `iphone`, `ipad` or `appletv`. Plain `iphone` is the default iPhone (the newest Pro); pick another model by name where a Mac has it: `iphone:pro max` (largest), `iphone:17e` (smallest, a notch), `iphone:air`, or narrow by runtime with `@iOS 27`. Leasing again on the same voyage gives the same berth back.
 4. **Boot** if it isn't: `boot`. The first boot of a berth can take about 40 seconds.
 5. **Put the app on it:**
    - A build: zip the `.app`, get `upload_url`, PUT the zip there, then `install_app` with the `blobKey` and `launch_app` with the bundle id. An EAS **simulator** build goes in directly: `install_app` with `url` (`eas build:view <id> --json` → `artifacts.buildUrl`, from a profile with `"ios": { "simulator": true }`).
