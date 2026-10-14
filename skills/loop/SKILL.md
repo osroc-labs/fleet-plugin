@@ -1,6 +1,6 @@
 ---
 name: loop
-description: Fleet's perpetual build loop for a project. Picks the next task (the user's Fleet Inbox and orders, then open GitHub issues, then the roadmap), prototypes it when it's open-ended, then builds, verifies, reviews, puts it up for the user's review in Fleet, ships on their green, and moves to the next task until the user says stop or the queue is empty. Modes ios, web, api, cli and prototype-only (detected from the repo when omitted); a number runs that many lanes at once, each in its own worktree (and simulator), and the user can add or remove lanes from the project's Loop tab in Fleet while it runs. Use when the user runs /fleet:loop or /fleet:ios-loop, or asks Fleet to keep building through the backlog. Not the built-in /loop interval runner.
+description: Fleet's perpetual build loop. Picks the next task, prototypes if open, builds, verifies, reviews, puts it up for review, ships on green, repeats. Modes ios, web, api, cli, prototype-only; a number runs parallel lanes. Use for /fleet:loop or "keep building the backlog". Not the built-in /loop.
 argument-hint: "[ios|web|api|cli|prototype-only] [lanes, e.g. 2] [task or issue | once <task>] | resume [voyage id] | stop"
 allowed-tools: Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-repo"), Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-repo" *), Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-login" check), Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-api" *), Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-join" *)
 ---

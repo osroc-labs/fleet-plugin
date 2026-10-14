@@ -1,6 +1,6 @@
 ---
 name: triage
-description: Handle "it's broken", "this errors", "X doesn't work" or a crash report by reading the recorded errors and logs first, finding the root cause with evidence, fixing it on a branch with a regression test, then verifying. Use when the user reports a bug or runs /fleet:triage, before asking them for repro steps. If the repo has its own triage skill, use that instead.
+description: Handle "it's broken", errors and crash reports. Reads the logs first, finds the root cause, fixes it on a branch with a regression test, verifies. Use for bug reports or /fleet:triage. A repo's own triage skill wins.
 argument-hint: "<what's broken, where, roughly when>"
 allowed-tools: Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-repo"), Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-repo" *)
 ---

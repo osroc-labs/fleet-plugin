@@ -1,6 +1,6 @@
 ---
 name: ios-loop
-description: Alias for /fleet:loop ios, the perpetual build loop in its iPhone mode (simulator berths, smoke tests, phone previews). Use when the user runs /fleet:ios-loop.
+description: Alias for /fleet:loop ios (the iPhone build loop). Use for /fleet:ios-loop.
 argument-hint: "[lanes, e.g. 2] [task or issue] | resume [voyage id] | stop"
 disable-model-invocation: true
 ---

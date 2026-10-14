@@ -1,6 +1,6 @@
 ---
 name: verify
-description: Check that a change really works and report pass or fail with evidence, by running the repo's tests and gates and then looking at the result (a URL with screenshots, or the app on a simulator). Never claims success unchecked. Use when the user runs /fleet:verify, asks "does it work?" or "check it" about a branch, PR, preview or production deploy, or as the step after fleet:build, fleet:triage, fleet:ship or in fleet:loop. If the repo has its own verify skill, use that instead.
+description: Check a change really works and report pass/fail with evidence (tests, gates, then the URL or simulator). Use for /fleet:verify, "does it work?", or after build, triage or ship. A repo's own verify skill wins.
 argument-hint: "[branch | PR | preview | production] [what changed]"
 allowed-tools: Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-repo"), Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-repo" *)
 ---

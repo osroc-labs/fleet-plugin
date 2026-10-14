@@ -1,5 +1,5 @@
 ---
-description: Find past Claude Code sessions in your Fleet by what was said or done in them, and print the lines to resume them.
+description: Find past Claude Code sessions in your Fleet by what was said or done, with the lines to resume them.
 argument-hint: "<words>"
 allowed-tools: Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-api" *), Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-login" check), Bash(grep -h *)
 ---

@@ -1,6 +1,6 @@
 ---
 name: review
-description: An independent review of a branch or PR before it merges, with fresh eyes, for correctness, security and privacy, regressions, performance and data cost, rollout safety, tests and leftover debris, then fix the findings on the same branch. Use when the user runs /fleet:review, asks for a review of a branch or PR, or as the step after fleet:verify (fleet:loop runs it before the user's review). If the repo has its own review skill, use that instead.
+description: Independent review of a branch or PR before merge (correctness, security, regressions, cost, rollout, tests, debris), fixing findings on the branch. Use for /fleet:review or "review this PR". A repo's own review skill wins.
 argument-hint: "<PR number or branch> [base branch] | <branch> round <since-sha>"
 allowed-tools: Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-repo"), Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-repo" *)
 ---

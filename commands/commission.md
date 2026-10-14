@@ -1,5 +1,5 @@
 ---
-description: Commission this repo as a ship in your Fleet, with the vessel of your choice.
+description: Commission this repo as a ship in your Fleet, with the vessel you choose.
 argument-hint: "[vessel]"
 allowed-tools: Bash(git remote get-url origin), Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-login" *)
 ---

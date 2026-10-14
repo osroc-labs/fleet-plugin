@@ -1,6 +1,6 @@
 ---
 name: fleet-workflows
-description: Shared rules, the chain and the per-repo settings file (.fleet/workflow.json) for Fleet's workflow skills (fleet:loop, idea, prototype, build, verify, review, ship, triage). Load it only while running one of those skills; it does nothing on its own.
+description: Shared rules and .fleet/workflow.json settings for Fleet's workflow skills; load only while running one of them.
 user-invocable: false
 ---
 

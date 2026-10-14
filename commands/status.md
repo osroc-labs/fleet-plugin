@@ -1,5 +1,5 @@
 ---
-description: Your Fleet at a glance, with your Macs and their simulators, live sessions and what's waiting on you (picks, reviews, questions).
+description: Your Fleet at a glance, with Macs, simulators, live sessions and what's waiting on you.
 disable-model-invocation: true
 allowed-tools: Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-api" *), Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-login" check)
 ---

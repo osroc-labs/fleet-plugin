@@ -1,6 +1,6 @@
 ---
 name: build
-description: Build a feature or change end to end on its own branch, following the repo's conventions, with tests and a draft PR, then hand off to verification. Hands iPhone work in iOS/Expo/React Native repos to fleet:loop ios and open visual choices to fleet:prototype. Use when the user runs /fleet:build, picks a prototype option, fleet:loop calls it, or asks Fleet to build something. If the repo has its own build workflow, use that instead.
+description: Build a feature or change end to end on its own branch with tests and a draft PR, then hand off to verify. Use for /fleet:build, a picked prototype option, or "build this". A repo's own build workflow wins.
 argument-hint: "<what to build, or an issue number>"
 allowed-tools: Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-repo"), Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-repo" *)
 ---

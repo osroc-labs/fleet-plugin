@@ -1,5 +1,5 @@
 ---
-description: Sign this computer in to Fleet. Opens a link to approve; no key to copy, no terminal.
+description: Sign this computer in to Fleet (opens a link to approve).
 allowed-tools: Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-login" *)
 ---
 

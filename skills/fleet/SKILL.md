@@ -1,6 +1,6 @@
 ---
 name: fleet
-description: Fleet's front door. Leads with /fleet:loop (perpetual building on a project), shows the other Fleet workflows (idea, prototype, build, verify, review, ship, triage) with one line each, what's waiting on the user in Fleet, and suggests the right workflow for what they describe. Use when the user types /fleet or asks what Fleet can do or which Fleet workflow fits.
+description: Fleet's front door, listing the workflows (loop, idea, prototype, build, verify, review, ship, triage), what's waiting on you, and which fits. Use for /fleet or "what can Fleet do".
 argument-hint: "[what you want to do]"
 allowed-tools: Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-api" *), Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-repo" *), Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-login" check)
 ---

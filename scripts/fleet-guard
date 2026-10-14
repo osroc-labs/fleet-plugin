@@ -14,6 +14,28 @@
 #             worktree commits that have sat on no remote for over 10 minutes. Quiet when there are none.
 # POSIX sh; never fails the tool call (any error exits 0 silently).
 MODE="${1:-}"
+
+# Fast path, shell builtins only (no git, grep or lib.sh; this runs after every tool call): find the repo root by
+# walking up to the folder holding .git, and leave unless its .fleet/workflow.json names this guard's key. Only a
+# prefilter: when the key is there, the full check below decides exactly as before.
+case "$MODE" in
+brief) KEY=enforceBriefs ;;
+unpushed) KEY=unpushedWork ;;
+*) exec cat >/dev/null ;;
+esac
+d="${CLAUDE_PROJECT_DIR:-$PWD}"
+while [ -n "$d" ] && [ ! -e "$d/.git" ]; do
+  case "$d" in */*) d="${d%/*}" ;; *) d="" ;; esac
+done
+[ -n "$d" ] || d="${CLAUDE_PROJECT_DIR:-$PWD}"
+named=""
+if [ -f "$d/.fleet/workflow.json" ]; then
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in *"\"$KEY\""*) named=1 && break ;; esac
+  done <"$d/.fleet/workflow.json"
+fi
+[ -n "$named" ] || exec cat >/dev/null
+
 HERE=$(dirname "$0")
 . "$HERE/lib.sh" 2>/dev/null || { cat >/dev/null; exit 0; }
 

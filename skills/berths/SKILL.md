@@ -1,6 +1,6 @@
 ---
 name: berths
-description: Lease a real iPhone, iPad or Apple TV simulator from your Fleet to see, test, screenshot or tap through an iOS, iPadOS or tvOS app, an Expo or React Native dev build, or a web page in Safari. Use whenever you need to look at an app or page on an Apple device instead of guessing.
+description: Lease a real iPhone, iPad or Apple TV simulator from your Fleet to see, test, screenshot or tap an iOS/tvOS app, Expo or React Native build, or a web page in Safari, instead of guessing.
 ---
 
 # Berths: an Apple simulator on demand
