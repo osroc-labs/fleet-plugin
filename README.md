@@ -2,7 +2,7 @@
 
 A tools-included toolkit for building with Claude Code, and for having fun with your friends while you do. At its heart is **`/fleet:loop`**: one perpetual build loop for a project that picks the next task, builds it, checks it, puts it in front of you, and ships it on your green, then does the next one. It conducts a set of clearly stated workflows (idea, prototype, build, verify, review, ship, triage) that also run on their own, backed by your Fleet: **Prototypes** where you pick between options, an **Inbox** of what's waiting on you, **simulators** on your Macs, and a quiet log of every session you can search and resume.
 
-Type `/fleet` to start. It shows the loop and the workflows, what's waiting on you, and suggests the right one for what you describe.
+Type `/fleet:help` for a plain-words guide with examples, or `/fleet` to start. It shows the loop and the workflows, what's waiting on you, and suggests the right one for what you describe.
 
 No binary to install: the hooks and helpers are small POSIX `sh` scripts that use only `curl`, `git`, `sed`, `awk` and `date`.
 
