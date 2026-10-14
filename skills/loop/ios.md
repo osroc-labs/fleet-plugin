@@ -15,11 +15,11 @@ For iOS, Expo and React Native apps (and Swift/Objective-C ones). This is how `f
 
 **A Fleet berth** (with a Fleet key; preferred, so the user's Mac stays free):
 
-1. The task's voyage (the loop started it; on a slot it's the agent's own crew voyage).
+1. The task's voyage (the loop started it; on a lane it's the agent's own crew voyage). Tell the lane: `loop_lane` with `lease_id` once leased.
 2. `fleet_status`: pick a Mac that's online with a free (`ashore`) berth of the right kind and room to boot (`host.capacity.canBoot` above 0 when it's reported). Note its CPU (Apple silicon is `arm64`) and iOS runtime: the build must match them.
 3. `lease` with `target` from the settings, `wait_seconds: 120`, `op_id` `loop-<issue>-lease-<round>`. Then `boot` (the first boot can take about 40 s). Leasing again on the same voyage gives the same berth back.
 
-**A local simulator** (no key, no free berth, or the repo's docs say local): headless only. `xcrun simctl list devices available`, `xcrun simctl boot <udid>`. Never open the Simulator app (its windows cover the user's screen, and quitting it shuts every simulator down). Screenshots: `xcrun simctl io <udid> screenshot <file>.png`. At most 3 booted at once on the user's Mac unless the repo says otherwise; back-to-back tasks in one slot reuse its booted simulator instead of rebooting.
+**A local simulator** (no key, no free berth, or the repo's docs say local): headless only. `xcrun simctl list devices available`, `xcrun simctl boot <udid>`. Never open the Simulator app (its windows cover the user's screen, and quitting it shuts every simulator down). Screenshots: `xcrun simctl io <udid> screenshot <file>.png`. At most 3 booted at once on the user's Mac unless the repo says otherwise; back-to-back tasks in one lane reuse its booted simulator instead of rebooting.
 
 ## 3. Put the app on it
 
@@ -34,14 +34,14 @@ xcodebuild -workspace ios/<Name>.xcworkspace -scheme <Scheme> -configuration Rel
 ditto -c -k --sequesterRsrc --keepParent <scratch>/DerivedData/Build/Products/Release-iphonesimulator/<Name>.app <scratch>/app.zip
 ```
 
-(Native apps: `-project`/`-scheme` the same way; Debug is fine for them. Keep one DerivedData folder, shared by every slot, so rebuilds are incremental and nothing is duplicated. Use `ARCHS=x86_64` for an Intel Mac. No Xcode here? An EAS build with an `"ios": { "simulator": true }` profile gives a `.app` too.)
+(Native apps: `-project`/`-scheme` the same way; Debug is fine for them. Keep one DerivedData folder, shared by every lane, so rebuilds are incremental and nothing is duplicated. Use `ARCHS=x86_64` for an Intel Mac. No Xcode here? An EAS build with an `"ios": { "simulator": true }` profile gives a `.app` too.)
 
 Then `upload_url` with `ext: "zip"`, `curl -sS -T <scratch>/app.zip '<uploadUrl>'`, `install_app` with the `blob_key`, and `launch_app` with the bundle id. Keep the `blob_key`: until native code or JavaScript changes, reinstall it next round instead of rebuilding (uploads last a day).
 
 **B. The dev client plus Metro, for hot reload** (`expo-dev-client` or bare React Native in Debug):
 
 1. Build and install a Debug simulator build once, as in A with `-configuration Debug` (reuse it until native code changes).
-2. Start Metro in the background on the slot's port: `CI=1 npx expo start --dev-client --port <port>` (bare RN: `npx react-native start --port <port>`).
+2. Start Metro in the background on the lane's port: `CI=1 npx expo start --dev-client --port <port>` (bare RN: `npx react-native start --port <port>`).
 3. A Fleet berth can't reach this Mac's `localhost`. Tunnel it:
    - with the `fleet` CLI: `fleet expose <port> --lease <lease id> --scheme <url scheme>` (opens the dev client on the tunnel);
    - else with `cloudflared`: `cloudflared tunnel --url http://localhost:<port>`, read its `https://….trycloudflare.com` URL, then `open_url` `<scheme>://expo-development-client/?url=<that URL, percent-encoded>`.
@@ -77,7 +77,7 @@ The dev client is for building, not sign-off: native interactions (context menus
 ## 6. Up for review (the loop's § 6, on iOS)
 
 - `voyage_stage` `review` with `media` as `capture_lease_id` of the berth (captured now, copied, so they outlive it), or uploaded screenshots (`blob_key`), up to 6. Then **release the lease**.
-- The user tests on their own phone when the repo has a preview (`commands.deployPreview`, e.g. an over-the-air update to a preview channel): publish from a clean, pushed tree (`git status --short` empty, `HEAD` pushed; never chain a publish after a merge without checking it), smoke it on the replica (§ 5), and add "On your phone:" with how to get it and the build label to look for. A preview channel holds one update: with several slots, publish `loop/review` (`fleet:loop` § Slots).
+- The user tests on their own phone when the repo has a preview (`commands.deployPreview`, e.g. an over-the-air update to a preview channel): publish from a clean, pushed tree (`git status --short` empty, `HEAD` pushed; never chain a publish after a merge without checking it), smoke it on the replica (§ 5), and add "On your phone:" with how to get it and the build label to look for. A preview channel holds one update: with several lanes, publish `loop/review` (`fleet:loop` § Lanes).
 - With `greenShips: true`, the user's Ship it after testing on their phone is the yes to merge and ship that task (an over-the-air update to production follows the repo's deploy, from the main branch).
 - Native changes (a new native module, entitlements, widgets) can't ride an over-the-air update: collect them on one branch for the next store build, which reaches every tester and needs the user's yes; keep the loop busy with tasks that can ship over the air meanwhile.
 
