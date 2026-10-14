@@ -30,6 +30,8 @@ You never have to open the dashboard to use it, but it's where you pick, review 
 2. In Claude Code: `/fleet:login`, then approve the link it opens.
 3. Start working in any repo. That's it: the session shows up in Sessions.
 
+Friends: add one by email on https://fleet.osroc.io/app/settings/friends (they accept it in Fleet; nothing is emailed), or send them your invite link from the same page.
+
 Optional: to let Claude use simulators on a Mac, add it at https://fleet.osroc.io/app/add.
 
 **Just here for World?** Open a friend's invite link, pick "Just hang out", and install `fleet-social@osroc` instead (`/fleet-social:login`): your boat sails with your friends', no toolkit. New accounts start with World and Friends only; turn other tabs on any time in Settings › Account › Tabs.

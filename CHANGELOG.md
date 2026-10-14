@@ -2,6 +2,9 @@
 
 One line per release of the `fleet` plugin, newest first, with the osroc-labs/fleet issues it closes. Update with `claude plugin marketplace update osroc && claude plugin update fleet@osroc`, then start a new session. Server-side changes (new MCP tools, dashboard) go live on fleet.osroc.io without a plugin update; a new session picks up new tools.
 
+## 0.8.10
+- Friends: up to 50; add a friend by email from Friends (they accept in their Inbox, or when they first sign in); invites survive any sign-in route and the plugin logins; every friend's boat waits at their island in World when they're away.
+
 ## 0.8.9
 - Fleet Social: join World without the toolkit (an invite link and `fleet-social`). New accounts see World and Friends only; turn tabs on in Settings › Tabs, and the full plugin turns the work tabs on by itself.
 

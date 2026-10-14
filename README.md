@@ -189,6 +189,8 @@ Want the social side (your boat in World next to your friends', moving while you
 
 **Quiet by design.** The hooks never touch the network (a detached sender does), never print and always exit 0. With no key they do nothing. If your Fleet server doesn't know Fleet Social yet, the sender rests for an hour and tries again later.
 
+**Adding friends:** on the dashboard's Friends page, add a friend by their email (they accept the request in Fleet, now or whenever they first sign in; nothing is emailed), or copy your invite link and send it. If a friend sent you a link, open it in the browser you sign in with: after `/fleet-social:login` the approval page offers "Sail with <Name>".
+
 **Upgrading to the full toolkit:** `/plugin install fleet@osroc`. It uses the same key: same account, same friends, same boat, and the work tabs turn on by themselves the first time the full plugin checks in (unless you've set your tabs yourself in Settings › Account › Tabs). Fleet Social then goes quiet for every session the full plugin reports, so nothing is counted twice; uninstall it when you like with `/plugin uninstall fleet-social@osroc` and `rm -rf ~/.fleet/social`.
 
 ## Uninstall
