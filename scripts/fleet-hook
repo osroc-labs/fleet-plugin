@@ -33,7 +33,14 @@ ST="$WF/state/$SID"
 # quiet instead of reporting it twice. Tidied with the rest of the session's state after 30 days.
 [ -f "$ST.full" ] || : >"$ST.full" 2>/dev/null
 
-enqueue() { printf '%s\n' "$1" >>"$Q" 2>/dev/null || flog "$EVENT: can't write $Q"; }
+# Each event line follows a time line, {"t":"at","at":"…"}, when the hook ran (one date per hook): the sender stamps the
+# event with it rather than with when it was sent. The event lines themselves keep their 0.7 format, and a 0.7 sender
+# (an older plugin still running in an open session) just drops the time lines.
+NOW=""
+enqueue() {
+  [ -n "$NOW" ] || NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  printf '{"t":"at","at":"%s"}\n%s\n' "$NOW" "$1" >>"$Q" 2>/dev/null || flog "$EVENT: can't write $Q"
+}
 
 # kind, byte limit, prefix; text on stdin. Queues one log line.
 queue_log() {
@@ -66,8 +73,9 @@ has_history() {
   [ -s "$tp" ]
 }
 
-# Claude's final text for the turn, still JSON-escaped, cut to 4000 bytes: the sender decodes,
-# redacts and trims it (the transcript can lag the hook, so this field is the reliable source).
+# Claude's final text for the turn, still JSON-escaped, cut to 24000 bytes (never inside an escape): the sender decodes,
+# redacts and trims it to the reply (8 KB) and the check-in (280). The transcript can lag the hook, so this field is the
+# reliable source.
 raw_last_message() {
   awk '
     { s = (NR > 1) ? s "\n" $0 : $0 }
@@ -76,7 +84,13 @@ raw_last_message() {
       s = substr(s, RSTART + RLENGTH)
       if (!match(s, /^([^"\\]|\\.)*/)) exit
       v = substr(s, 1, RLENGTH)
-      if (length(v) > 4000) { v = substr(v, 1, 4000); sub(/\\(u[0-9a-fA-F]?[0-9a-fA-F]?[0-9a-fA-F]?)?$/, "", v) }
+      if (length(v) > 24000) {
+        v = substr(v, 1, 24000)
+        if (match(v, /\\+u[0-9a-fA-F]?[0-9a-fA-F]?[0-9a-fA-F]?$/)) {
+          b = substr(v, RSTART); sub(/u.*$/, "", b)
+          if (length(b) % 2 == 1) v = substr(v, 1, RSTART + length(b) - 2)
+        } else if (match(v, /\\+$/) && RLENGTH % 2 == 1) v = substr(v, 1, length(v) - 1)
+      }
       printf "%s", v
     }' "$IN" 2>/dev/null
 }
@@ -104,7 +118,7 @@ UserPromptSubmit)
     rm -f "$ST.waiting"
     printf 'Back at the helm: answered in the terminal.' | queue_log answer 1000 ""
   fi
-  queue_log note 1000 "Captain: " <"$P"
+  queue_log note 8009 "Captain: " <"$P" # the prompt verbatim (redacted), up to 8000 bytes
   rm -f "$P"
   spawn_sender
   ;;

@@ -7,7 +7,7 @@ HERE=$(dirname "$0")
 . "$HERE/lib.sh" 2>/dev/null || exit 0
 
 LOCK="$WF/send.lock"
-UA="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36 fleet-plugin/0.5.0"
+UA="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36 fleet-plugin/0.8.0"
 mkdir -p "$WF/queue" "$WF/work" "$WF/state" "$WF/sessions" "$WF/tmp" 2>/dev/null || exit 0
 
 lock() {
@@ -42,6 +42,7 @@ post() {
 unjson() { printf '%s' "$1" | sed -e 's/\\"/"/g' -e 's/\\\\/\\/g'; }
 
 now_iso() { date -u +%Y-%m-%dT%H:%M:%SZ; }
+TAB=$(printf '\t')
 
 # The session block for session $1, into SESSION (JSON): where it runs and the git facts as of now, plus its name
 # (the last /rename sent). The ingest API files the session under its repo's ship, and moves it when origin changes.
@@ -76,9 +77,62 @@ session_block() {
   SESSION="{$SESSION}"
 }
 
-# One event as JSON: kind $1, text $2 (JSON-escaped), opId $3, seq $4, data $5 (a JSON object, optional).
+# One event as JSON: kind $1, text $2 (JSON-escaped), opId $3, seq $4, data $5 (a JSON object, optional), time $6
+# (optional: a transcript timestamp). Without $6 it's AT, when the hook queued the line (its time line), else now.
 NODATA='{}'
-event() { printf '{"opId":"%s","seq":%s,"at":"%s","kind":"%s","text":"%s","data":%s}' "$3" "$4" "$(now_iso)" "$1" "$2" "${5:-$NODATA}"; }
+AT=""
+event() { printf '{"opId":"%s","seq":%s,"at":"%s","kind":"%s","text":"%s","data":%s}' "$3" "$4" "${6:-${AT:-$(now_iso)}}" "$1" "$2" "${5:-$NODATA}"; }
+
+# Does the server take Claude's replies (kind "reply")? GET /api/wayfind says "replies": true on a server that does; one
+# that predates them gets none, so nothing is refused or logged as a stray note. The answer is kept in caps for an hour
+# (per server). Unknown (offline, 5xx, a bad key): no replies this time, and ask again next time.
+caps_set() { printf '%s %s %s\n' "$(date +%s)" "$1" "$SERVER" >"$WF/caps" 2>/dev/null; }
+server_replies() {
+  _now=$(date +%s)
+  if read -r _ct _cv _cs <"$WF/caps" 2>/dev/null && [ "$_cs" = "$SERVER" ]; then
+    case "$_ct" in '' | *[!0-9]*) ;; *) [ $((_now - _ct)) -lt 3600 ] && { [ "$_cv" = yes ]; return; } ;; esac
+  fi
+  _cr="$WF/tmp/caps.$$"
+  _cc=$(printf 'header = "Authorization: Bearer %s"\n' "$KEY" |
+    curl -sS -K - -m 10 -o "$_cr" -w '%{http_code}' -A "$UA" "$SERVER/api/wayfind" 2>>"$WF/log")
+  case "$_cc" in
+  2*)
+    if grep -q '"replies"[[:space:]]*:[[:space:]]*true' "$_cr" 2>/dev/null; then caps_set yes; rm -f "$_cr"; return 0; fi
+    caps_set no
+    ;;
+  401 | 408 | 429 | 5* | 000 | "") ;;
+  4*) caps_set no ;;
+  esac
+  rm -f "$_cr"
+  return 1
+}
+
+# Send Claude's replies for session $1? Not when "replies": false in ~/.fleet/config.json or the repo's
+# .fleet/workflow.json (lib.sh), nor to a server that doesn't take them.
+replies_wanted() {
+  replies_off "$(sed -n 1p "$WF/state/$1.cwd" 2>/dev/null)" && return 1
+  server_replies
+}
+
+# A 4xx (not 401/408/409/429) to a batch that held a reply: this server doesn't take them after all.
+refused() { case "$CODE" in 401 | 408 | 409 | 429) return 1 ;; 4*) return 0 ;; esac; return 1; }
+
+# POST the events in file $2 (one JSON event per line) for session $1, in requests the server takes: at most 150 events
+# and about 400 KB each. Returns 1 at the first that fails (CODE says why); opIds make the ones already sent replay.
+send_chunks() {
+  _n=0 _b=0 _evs=""
+  while IFS= read -r _e; do
+    [ -n "$_e" ] || continue
+    _l=${#_e}
+    if [ "$_n" -gt 0 ] && { [ "$_n" -ge 150 ] || [ $((_b + _l)) -gt 400000 ]; }; then
+      send_events "$1" "$_evs" || return 1
+      _n=0 _b=0 _evs=""
+    fi
+    _evs="${_evs:+$_evs,}$_e"
+    _n=$((_n + 1)) _b=$((_b + _l + 1))
+  done <"$2"
+  [ "$_n" -eq 0 ] || send_events "$1" "$_evs"
+}
 
 # POST the events (a JSON list body, without brackets, in $2) for session $1 to the session ingest API.
 # On success the session's voyage id (vs_…) is linked locally, for /fleet:join and the berths skill.
@@ -110,8 +164,9 @@ title_event() {
   TE=$(event title "$nt" "$3" "$4")
 }
 
-# Register session $1 from an open line ($2) with opId $3 and seq $4: a start event, the earlier prompts of a session
-# that ran before the hooks (backfill, once), and its name. $5: a legacy plain voyage (v_…) this session logged to
+# Register session $1 from an open line ($2) with opId $3 and seq $4: a start event, the earlier conversation of a
+# session that ran before the hooks (backfill, once: the last 50 turns' prompts and, when the server takes them, Claude's
+# replies, each at its transcript time), and its name. $5: a legacy plain voyage (v_…) this session logged to
 # with plugin 0.1/0.2; it is closed, pointing at the session voyage.
 open_session() {
   osid=$1 oline=$2 oop=$3 oseq=$4 legacy=${5:-}
@@ -124,24 +179,55 @@ open_session() {
   [ -n "$otp" ] || otp=$(sed -n 1p "$WF/state/$osid.tp" 2>/dev/null)
   BF="$WF/tmp/backfill.$$"
   : >"$BF"
-  [ -f "$WF/state/$osid.backfilled" ] || transcript_prompts "$otp" "${tn:-0}" >"$BF"
+  [ -f "$WF/state/$osid.backfilled" ] || transcript_turns "$otp" "${tn:-0}" 0 50 >"$BF"
   # The transcript may already hold the prompt that registered us; that one is sent on its own.
   if [ -n "$title_e" ] && [ -s "$BF" ]; then
-    lastt=$(sed -n '$p' "$BF" | tr '\001' '\n' | redact | tr '\n' ' ' | json_text 80)
-    [ "$lastt" = "$title_e" ] && sed -i.bak '$d' "$BF" && rm -f "$BF.bak"
+    lastp=$(awk -F '\t' '$1 == "P" { n = NR } END { print n + 0 }' "$BF")
+    if [ "$lastp" -gt 0 ]; then
+      lastt=$(sed -n "${lastp}p" "$BF" | cut -f4- | tr '\001' '\n' | redact | tr '\n' ' ' | json_text 80)
+      [ "$lastt" = "$title_e" ] && sed -i.bak "${lastp}d" "$BF" && rm -f "$BF.bak"
+    fi
   fi
-  evs=$(event start "" "$oop" "$oseq")
-  [ -n "$legacy" ] && evs="$evs,$(event log "Continues voyage $legacy (logged by an earlier version of the Fleet plugin)." "$oop-legacy" "$oseq" '{"logKind":"note"}')"
-  k=0
-  while IFS= read -r p; do
-    k=$((k + 1))
-    t=$(printf '%s' "$p" | tr '\001' '\n' | redact | json_text 1000)
-    [ -n "$t" ] && evs="$evs,$(event prompt "$t" "$oop-b$k" "$oseq" '{"backfill":true}')"
-  done <"$BF"
-  rm -f "$BF"
   title_event "$osid" "$otp" "$oop-title" "$oseq"
-  [ -n "$TE" ] && evs="$evs,$TE"
-  send_events "$osid" "$evs" || return 1
+  ron=0
+  grep -q '^R' "$BF" && replies_wanted "$osid" && ron=1
+  EV="$WF/tmp/events.$$"
+  while :; do
+    {
+      event start "" "$oop" "$oseq"
+      echo
+      [ -n "$legacy" ] && { event log "Continues voyage $legacy (logged by an earlier version of the Fleet plugin)." "$oop-legacy" "$oseq" '{"logKind":"note"}'; echo; }
+      k=0 r=0
+      while IFS="$TAB" read -r typ _turn ts body; do
+        case "$ts" in "" | - | *[!0-9TZ:.+-]*) ts="" ;; esac
+        case "$typ" in
+        P)
+          k=$((k + 1))
+          t=$(printf '%s' "$body" | tr '\001' '\n' | redact | json_text 8000)
+          [ -n "$t" ] && { event prompt "$t" "$oop-b$k" "$oseq" '{"backfill":true}' "$ts"; echo; }
+          ;;
+        R)
+          [ "$ron" = 1 ] || continue
+          r=$((r + 1))
+          t=$(printf '%s' "$body" | json_unescape | redact | json_text 8192)
+          [ -n "$t" ] && { event reply "$t" "$oop-r$r" "$oseq" '{"backfill":true}' "$ts"; echo; }
+          ;;
+        esac
+      done <"$BF"
+      [ -n "$TE" ] && printf '%s\n' "$TE"
+    } >"$EV"
+    send_chunks "$osid" "$EV" && break
+    # A server that refuses replies after all: say so in caps and send the rest without them.
+    if [ "$ron" = 1 ] && refused; then
+      flog "send $osid: $CODE on a batch with replies; this server doesn't take them, backfilling without"
+      caps_set no
+      ron=0
+      continue
+    fi
+    rm -f "$BF" "$EV"
+    return 1
+  done
+  rm -f "$BF" "$EV"
   : >"$WF/state/$osid.backfilled"
   [ -n "$NEWTITLE" ] && printf '%s' "$NEWTITLE" >"$WF/state/$osid.title"
   if [ -n "$legacy" ]; then
@@ -158,6 +244,8 @@ open_session() {
 # Send one queue line ($2) for session $1 with opId $3 and seq $4. Returns 0 sent (or dropped for good), 1 to retry.
 send_line() {
   sid=$1 line=$2 op=$3 seq=$4
+  # A time line only stamps the event after it (pass sets AT).
+  case "$line" in '{"t":"at",'*) return 0 ;; esac
   vid=$(sed -n 1p "$WF/sessions/$sid" 2>/dev/null)
   # A session that plugin 0.1/0.2 logged to a plain voyage (v_…) moves to the session ingest API on its next event.
   case "$vid" in
@@ -217,16 +305,57 @@ send_line() {
     else
       tp=$(unjson "$(printf '%s' "$line" | sed -n 's/^{"t":"turn","crew":"[^"]*","tp":"\(.*\)","raw":".*"}$/\1/p')")
       [ -n "$tp" ] && [ ! -f "$WF/state/$sid.tp" ] && printf '%s\n' "$tp" >"$WF/state/$sid.tp"
-      [ -z "$raw" ] && raw=$(transcript_last_assistant "$tp")
+      # Claude's reply for the turn: the hook's last_assistant_message, else the transcript's final text for the turn.
+      # Its time is the transcript's when the transcript has caught up with this reply, else when the hook ran.
+      rw=0
+      replies_wanted "$sid" && rw=1
+      rts="" trx="" fromtr=0
+      if [ -f "$tp" ] && { [ -z "$raw" ] || [ "$rw" = 1 ]; }; then
+        trx=$(transcript_turns "$tp" 0 400 | awk -F '\t' '$1 == "R" { l = $0 } END { printf "%s", l }')
+      fi
+      if [ -n "$trx" ]; then
+        trt=$(printf '%s' "$trx" | cut -f3)
+        trx=$(printf '%s' "$trx" | cut -f4-)
+        case "$trt" in - | *[!0-9TZ:.+-]*) trt="" ;; esac
+        if [ -z "$raw" ]; then
+          raw=$trx rts=$trt fromtr=1
+        elif [ "$(printf '%s' "$raw" | head -c 200)" = "$(printf '%s' "$trx" | head -c 200)" ]; then
+          rts=$trt
+        fi
+      fi
       text=$(printf '%s' "$raw" | json_unescape | redact | tr '\n' ' ' | json_text 280)
       # The same words as the last check-in say nothing new.
       [ "$text" = "$(cat "$WF/state/$sid.laststate" 2>/dev/null)" ] && text=""
+      RE="" rsum=""
+      if [ "$rw" = 1 ] && [ -n "$raw" ]; then
+        rtext=$(printf '%s' "$raw" | json_unescape | redact | json_text 8192)
+        rsum=$(printf '%s' "$rtext" | cksum | awk '{ print $1 }')
+        # From the transcript, the same reply as last time is a transcript that hasn't caught up yet: nothing new.
+        # (The hook's own last_assistant_message is this turn's, even when Claude says the same words twice.)
+        if [ -n "$rtext" ] && { [ "$fromtr" = 0 ] || [ "$rsum" != "$(cat "$WF/state/$sid.lastreply" 2>/dev/null)" ]; }; then
+          RE=$(event reply "$rtext" "$op-reply" "$seq" "" "$rts")
+        fi
+      fi
       evs=$(event log "$text" "$op" "$seq" '{"logKind":"state"}')
       title_event "$sid" "$tp" "$op-title" "$seq"
       [ -n "$TE" ] && evs="$evs,$TE"
-      if send_events "$sid" "$evs"; then
+      sent=0
+      if [ -n "$RE" ]; then
+        if send_events "$sid" "$evs,$RE"; then
+          sent=2
+        elif refused; then
+          # This server doesn't take replies after all: keep the check-in and the name, drop the reply.
+          flog "send $sid: $CODE on a batch with a reply; this server doesn't take them, sending without"
+          caps_set no
+          send_events "$sid" "$evs" && sent=1
+        fi
+      elif send_events "$sid" "$evs"; then
+        sent=1
+      fi
+      if [ "$sent" -gt 0 ]; then
         [ -n "$text" ] && printf '%s' "$text" >"$WF/state/$sid.laststate"
         [ -n "$NEWTITLE" ] && printf '%s' "$NEWTITLE" >"$WF/state/$sid.title"
+        [ "$sent" = 2 ] && printf '%s' "$rsum" >"$WF/state/$sid.lastreply"
       fi
     fi
     ;;
@@ -261,6 +390,17 @@ pass() {
     while [ "$i" -lt "$total" ]; do
       i=$((i + 1))
       line=$(sed -n "${i}p" "$W")
+      # When the hook queued it: the time line just before it (hooks from 0.8.0 on), else the send time.
+      AT=""
+      if [ "$i" -gt 1 ]; then
+        prev=$(sed -n "$((i - 1))p" "$W")
+        case "$prev" in '{"t":"at","at":"'*'"}')
+          AT=${prev#'{"t":"at","at":"'}
+          AT=${AT%'"}'}
+          case "$AT" in *[!0-9TZ:.+-]*) AT="" ;; esac
+          ;;
+        esac
+      fi
       if send_line "$sid" "$line" "$sid-$((base + i))" "$((base + i))"; then
         echo "$i" >"$WF/state/$sid.cursor"
       else
