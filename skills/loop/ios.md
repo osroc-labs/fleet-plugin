@@ -17,7 +17,7 @@ For iOS, Expo and React Native apps (and Swift/Objective-C ones). This is how `f
 
 1. The task's voyage (the loop started it; on a lane it's the agent's own crew voyage). Tell the lane: `loop_lane` with `lease_id` once leased.
 2. `fleet_status`: pick a Mac that's online with a free (`ashore`) berth of the right kind and room to boot (`host.capacity.canBoot` above 0 when it's reported). Note its CPU (Apple silicon is `arm64`) and iOS runtime: the build must match them.
-3. `lease` with `target` from the settings, `wait_seconds: 120`, `op_id` `loop-<issue>-lease-<round>`. Then `boot` (the first boot can take about 40 s). Leasing again on the same voyage gives the same berth back.
+3. `lease` with `target` from the settings, `wait_seconds: 45` (a call waits at most 45 s; no free berth yet: call `lease` again, up to twice), `op_id` `loop-<issue>-lease-<round>`. Then `boot` (the first boot can take about 40 s). Leasing again on the same voyage gives the same berth back.
 
 **A local simulator** (no key, no free berth, or the repo's docs say local): headless only. `xcrun simctl list devices available`, `xcrun simctl boot <udid>`. Never open the Simulator app (its windows cover the user's screen, and quitting it shuts every simulator down). Screenshots: `xcrun simctl io <udid> screenshot <file>.png`. At most `loop.localSimulators` (default 3) booted at once on the user's Mac; back-to-back tasks in one lane reuse its booted simulator instead of rebooting.
 

@@ -145,7 +145,7 @@ Without a Fleet key: the screenshots' paths and the steps in chat; ask for green
 
 ## 7–8. The verdict: ship on green, fix on notes
 
-Between steps, check every task that's waiting with `await_decision` and `wait_seconds: 0`, plus `verdicts.feed` when it's set (§ Verdicts and feedback from the app). When nothing else can move (no lane free, or no task left to start), block on the oldest with `wait_seconds: 600`; after three `still waiting` in a row, stop (§ Stop: it's in the user's Inbox). Never decide for the user, and never treat silence as a yes.
+Between steps, check every task that's waiting with `await_decision` and `wait_seconds: 0`, plus `verdicts.feed` when it's set (§ Verdicts and feedback from the app). When nothing else can move (no lane free, or no task left to start), block on the oldest with `await_decision` (each call waits at most 45 s), calling it again on every `still waiting`; after 30 minutes of `still waiting`, stop (§ Stop: it's in the user's Inbox). Never decide for the user, and never treat silence as a yes.
 
 Every verdict, from any source, is **for one sha**: the one under review when it was given (a Fleet decision on a review carries it as `decision.sha`, else it's the sha you staged in § 6; a verdict from the app names its build label; a green in chat is for what's on the device now). Record it against that sha on the task's issue, in the user's words. The newest verdict for a task wins.
 
