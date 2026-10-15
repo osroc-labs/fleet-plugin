@@ -43,10 +43,6 @@ case "$SID" in "" | *[!A-Za-z0-9_-]*) flog "$EVENT: bad session_id"; exit 0 ;; e
 Q="$WF/queue/$SID.jsonl"
 ST="$WF/state/$SID"
 
-# Mark this session as reported by the full plugin, so Fleet Social (fleet-social@osroc), if it's installed too, stays
-# quiet instead of reporting it twice. Tidied with the rest of the session's state after 30 days.
-[ -f "$ST.full" ] || : >"$ST.full" 2>/dev/null
-
 # Each event line follows a time line, {"t":"at","at":"…"}, when the hook ran (one date per hook): the sender stamps the
 # event with it rather than with when it was sent. The event lines themselves keep their 0.7 format, and a 0.7 sender
 # (an older plugin still running in an open session) just drops the time lines.

@@ -23,12 +23,6 @@
       "source": "./workflows",
       "description": "Fleet's workflow skills: the perpetual build loop (/fleet-workflows:loop) and idea, prototype, build, verify, review, ship and triage. Needs fleet. Turn it off per repo with enabledPlugins.",
       "version": "0.1.0"
-    },
-    {
-      "name": "fleet-social",
-      "source": "./social",
-      "description": "The social side of Fleet without the toolkit: your boat sails in World next to your friends' while you work. Presence only (the project's name, active or idle, an optional local mood score); never prompts, code or logs, no MCP, no skills, nothing in Claude's context. Sign in with /fleet-social:login.",
-      "version": "0.1.0"
     }
   ]
 }
