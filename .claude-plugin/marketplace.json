@@ -9,8 +9,20 @@
     {
       "name": "fleet",
       "source": "./",
-      "description": "A perpetual build loop for Claude Code (/fleet:loop: ios, web, api, cli and prototype-only modes) and the workflows it conducts (idea, prototype, build, verify, review, ship, triage), your Fleet's simulators and prototypes, and a quiet session log.",
+      "description": "Fleet for Claude Code: a quiet log of every session, your Fleet's MCP (prototypes, simulators, the build loop; only the features you turned on in Fleet) and /fleet:login, /fleet:status, /fleet:find.",
       "version": "0.8.15"
+    },
+    {
+      "name": "fleet-sims",
+      "source": "./sims",
+      "description": "Lease iPhone, iPad and Apple TV simulators from your Fleet's Macs: the berths skill and /fleet-sims:sim. Needs fleet.",
+      "version": "0.1.0"
+    },
+    {
+      "name": "fleet-workflows",
+      "source": "./workflows",
+      "description": "Fleet's workflow skills: the perpetual build loop (/fleet-workflows:loop) and idea, prototype, build, verify, review, ship and triage. Needs fleet. Turn it off per repo with enabledPlugins.",
+      "version": "0.1.0"
     },
     {
       "name": "fleet-social",

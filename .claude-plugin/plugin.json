@@ -2,9 +2,9 @@
   "name": "fleet",
   "displayName": "Fleet",
   "version": "0.8.15",
-  "description": "A tools-included toolkit for building with Claude Code: a perpetual build loop (/fleet:loop, with ios, web, api, cli and prototype-only modes, and parallel lanes you add or remove from Fleet) that conducts chained workflows (idea, prototype, build, verify, review, ship, triage) backed by your Fleet's prototypes, inbox and simulators, plus a quiet log of every session. No binary: POSIX sh hooks.",
+  "description": "Fleet for Claude Code: a quiet log of every session (watch, search and resume them in Fleet), your Fleet's MCP (prototypes to pick from, simulators, the build loop's lanes; only the features you turned on), and /fleet:login, /fleet:status, /fleet:find. No binary: POSIX sh hooks. Simulators' skill is fleet-sims; the workflow skills are fleet-workflows.",
   "author": { "name": "osroc-labs", "url": "https://fleet.osroc.io" },
   "homepage": "https://fleet.osroc.io",
   "repository": "https://github.com/osroc-labs/fleet-plugin",
-  "keywords": ["fleet", "workflows", "loop", "prototype", "ios", "simulator", "session log"]
+  "keywords": ["fleet", "session log", "prototype", "simulator", "mcp"]
 }
