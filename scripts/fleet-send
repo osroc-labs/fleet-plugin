@@ -70,9 +70,12 @@ session_block() {
     ;;
   esac
   [ -n "$remote" ] && SESSION="$SESSION,\"repo\":\"$(printf '%s' "$remote" | json_text 300)\""
+  # Presence keeps only that a session runs: no branch or commit.
+  [ "$SESS_LEVEL" = presence ] && branch="" sha=""
   case "$branch" in HEAD | "" | *[!A-Za-z0-9._/-]*) ;; *) SESSION="$SESSION,\"branch\":\"$branch\"" ;; esac
   case "$sha" in *[!0-9a-f]* | "") ;; *) SESSION="$SESSION,\"headSha\":\"$sha\",\"pushed\":$pushed" ;; esac
-  stitle=$(cat "$WF/state/$1.title" 2>/dev/null)
+  stitle=""
+  [ "$SESS_LEVEL" = full ] && stitle=$(cat "$WF/state/$1.title" 2>/dev/null)
   sbase="{$SESSION}"
   [ -n "$stitle" ] && SESSION="$SESSION,\"title\":\"$stitle\""
   SESSION="{$SESSION}"
@@ -110,7 +113,16 @@ event() {
 # Does the server take Claude's replies (kind "reply")? GET /api/wayfind says "replies": true on a server that does; one
 # that predates them gets none, so nothing is refused or logged as a stray note. The answer is kept in caps for an hour
 # (per server). Unknown (offline, 5xx, a bad key): no replies this time, and ask again next time.
+# The same answer says whether this account's Sessions is on ("sessions": false stops the hooks) and how much it keeps
+# ("sessionsLevel"), kept in features for lib.sh's sessions_caps. A server that predates features: on, full.
 caps_set() { printf '%s %s %s\n' "$(date +%s)" "$1" "$SERVER" >"$WF/caps" 2>/dev/null; }
+features_set() {
+  _fo=on _fl=full
+  grep -q '"sessions"[[:space:]]*:[[:space:]]*false' "$1" 2>/dev/null && _fo=off
+  _fl=$(sed -n -E 's/.*"sessionsLevel"[[:space:]]*:[[:space:]]*"(presence|activity|full)".*/\1/p' "$1" 2>/dev/null | head -n 1)
+  case "$_fl" in presence | activity | full) ;; *) _fl=full ;; esac
+  printf '%s %s %s %s\n' "$(date +%s)" "$SERVER" "$_fo" "$_fl" >"$WF/features" 2>/dev/null
+}
 server_replies() {
   _now=$(date +%s)
   if read -r _ct _cv _cs <"$WF/caps" 2>/dev/null && [ "$_cs" = "$SERVER" ]; then
@@ -121,6 +133,7 @@ server_replies() {
     curl -sS -K - -m 10 -o "$_cr" -w '%{http_code}' -A "$UA" "$SERVER/api/wayfind" 2>>"$WF/log")
   case "$_cc" in
   2*)
+    features_set "$_cr"
     if grep -q '"replies"[[:space:]]*:[[:space:]]*true' "$_cr" 2>/dev/null; then caps_set yes; rm -f "$_cr"; return 0; fi
     caps_set no
     ;;
@@ -180,7 +193,7 @@ send_events() {
 # changed since the last one the server took. Leaves the event in TE (or nothing) and the name in NEWTITLE.
 title_event() {
   NEWTITLE="" TE=""
-  [ -n "$2" ] || return 0
+  [ -n "$2" ] && [ "$SESS_LEVEL" = full ] || return 0
   nt=$(transcript_title "$2" | json_unescape | redact | tr '\n' ' ' | json_text 120)
   [ -n "$nt" ] || return 0
   [ "$nt" = "$(cat "$WF/state/$1.title" 2>/dev/null)" ] && return 0
@@ -203,7 +216,8 @@ open_session() {
   [ -n "$otp" ] || otp=$(sed -n 1p "$WF/state/$osid.tp" 2>/dev/null)
   BF="$WF/tmp/backfill.$$"
   : >"$BF"
-  [ -f "$WF/state/$osid.backfilled" ] || transcript_turns "$otp" "${tn:-0}" 0 50 >"$BF"
+  # The earlier conversation is words: sent only when this account's Sessions keeps everything.
+  [ -f "$WF/state/$osid.backfilled" ] || [ "$SESS_LEVEL" != full ] || transcript_turns "$otp" "${tn:-0}" 0 50 >"$BF"
   # The transcript may already hold the prompt that registered us; that one is sent on its own.
   if [ -n "$title_e" ] && [ -s "$BF" ]; then
     lastp=$(awk -F '\t' '$1 == "P" { n = NR } END { print n + 0 }' "$BF")
@@ -300,7 +314,14 @@ send_line() {
   '{"t":"log",'*)
     kind=$(printf '%s' "$line" | sed -n 's/^{"t":"log","kind":"\([a-z]*\)",.*$/\1/p')
     text=$(printf '%s' "$line" | sed -n 's/^{"t":"log","kind":"[a-z]*","text":"\(.*\)"}$/\1/p')
+    # Below full, a prompt is only that the session is working (the server keeps no more anyway); at presence, so are
+    # commits, PRs and links, and a wait says nothing.
+    case "$SESS_LEVEL:$kind:$text" in
+    activity:note:Captain:\ * | presence:note:*) kind=act ;;
+    presence:question:Waiting\ on\ you:\ *) text="Waiting on you: " ;;
+    esac
     case "$kind:$text" in
+    act:*) send_events "$sid" "$(event activity "" "$op" "$seq")" ;;
     'note:Captain: '*) send_events "$sid" "$(event prompt "${text#Captain: }" "$op" "$seq")" ;;
     'question:Waiting on you: '*) send_events "$sid" "$(event waiting "${text#Waiting on you: }" "$op" "$seq")" ;;
     answer:*) return 0 ;; # the server clears a wait on the session's next event
@@ -317,12 +338,28 @@ send_line() {
     *) d="{\"logKind\":\"${kind:-note}\"}"; send_events "$sid" "$(event log "$text" "$op" "$seq" "$d")" ;;
     esac
     ;;
+  '{"t":"act"}')
+    send_events "$sid" "$(event activity "" "$op" "$seq")"
+    ;;
   '{"t":"turn",'*)
     # A check-in, captured passively: the first 280 characters of Claude's last message. A main turn always sends
     # one event, so the server clears a "waiting on you" once Claude is done (an empty state writes nothing).
     crew=$(printf '%s' "$line" | sed -n 's/^{"t":"turn","crew":"\([^"]*\)",.*$/\1/p')
     raw=$(printf '%s' "$line" | sed -n 's/^{"t":"turn","crew":"[^"]*","tp":".*","raw":"\(.*\)"}$/\1/p')
-    if [ -n "$crew" ]; then
+    # Claude's words go only when Sessions keeps everything: below that a turn is only activity.
+    if [ "$SESS_LEVEL" != full ]; then
+      case "$crew" in
+      *@*)
+        d="{\"agentType\":\"${crew%@*}\",\"agentId\":\"${crew##*@}\"}"
+        send_events "$sid" "$(event crew_end "" "$op" "$seq" "$d")"
+        ;;
+      *) send_events "$sid" "$(event activity "" "$op" "$seq")" ;;
+      esac
+      raw="" crew="-"
+    fi
+    if [ "$crew" = "-" ]; then
+      :
+    elif [ -n "$crew" ]; then
       text=$(printf '%s' "$raw" | json_unescape | redact | tr '\n' ' ' | json_text 280)
       case "$crew" in
       *@*)
@@ -450,6 +487,15 @@ pass() {
 }
 
 run() {
+  # Ask the server (hourly) what this account's Sessions keeps before sending: off sends nothing, and the level cuts
+  # what goes. The queue of a session that's off is dropped.
+  server_replies >/dev/null
+  sessions_caps
+  if [ "$SESS_ON" = off ]; then
+    flog "Sessions is off for this account (Settings › Features); dropping the queue"
+    rm -f "$WF"/queue/*.jsonl "$WF"/work/*.jsonl "$WF"/state/*.cursor 2>/dev/null
+    return 0
+  fi
   wait_s=5
   start=$(date +%s)
   while :; do
@@ -459,6 +505,13 @@ run() {
     wait_s=$((wait_s * 2))
   done
 }
+
+# fleet-send --probe: only ask the server (the hook runs it hourly while Sessions is off, so turning it back on is seen).
+if [ "${1:-}" = --probe ]; then
+  rm -f "$WF/caps"
+  server_replies >/dev/null
+  exit 0
+fi
 
 while lock; do
   trap 'unlock; rm -f "$RESP"' EXIT
