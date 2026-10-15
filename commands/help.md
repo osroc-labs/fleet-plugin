@@ -30,43 +30,55 @@ You never have to open the dashboard to use it, but it's where you pick, review 
 2. In Claude Code: `/fleet:login`, then approve the link it opens.
 3. Start working in any repo. That's it: the session shows up in Sessions.
 
-Friends: add one by email on https://fleet.osroc.io/app/settings/friends (they accept it in Fleet; nothing is emailed), or send them your invite link from the same page.
+Optional: to let Claude use simulators on a Mac, add it at https://fleet.osroc.io/app/devices/add.
 
-Optional: to let Claude use simulators on a Mac, add it at https://fleet.osroc.io/app/add.
+## Features and plugins
 
-**Just here for World?** Open a friend's invite link, pick "Just hang out", and install `fleet-social@osroc` instead (`/fleet-social:login`): your boat sails with your friends', no toolkit. New accounts start with World and Friends only; turn other tabs on any time in Settings › Account › Tabs.
+Turn on only what you use in **Settings › Features** (https://fleet.osroc.io/app/settings/features): **Sessions**, **Prototypes**, **Simulators**, **Workflows**. Off means off: the page is gone, Claude doesn't see its tools (a new session picks up a change), and with Sessions off nothing about your sessions is sent. **Settings › Privacy** sets how much Sessions keeps: Presence, Activity (no prompts or replies) or Everything, and deletes the history.
 
-## Everyday workflows (examples)
+Skills come with their plugin, so install the ones you use:
+
+```
+/plugin install fleet@osroc              the session log, Fleet's tools, /fleet:login
+/plugin install fleet-sims@osroc         simulators: the berths skill, /fleet-sims:sim
+/plugin install fleet-workflows@osroc    the loop and the workflow skills below
+```
+
+A repo with its own skills can turn one off just there, in its `.claude/settings.json`: `{ "enabledPlugins": { "fleet-workflows@osroc": false } }`.
+
+World and Friends live in Fleet World now: https://fleet.osroc.io/world.
+
+## Everyday workflows (examples, with fleet-workflows)
 
 **"I just want to build something."**
 ```
-/fleet:build add a dark mode toggle to settings
+/fleet-workflows:build add a dark mode toggle to settings
 ```
 Claude makes a branch, builds it, tests it and opens a pull request. You review and say ship.
 
 **"I'm not sure what it should look like."**
 ```
-/fleet:prototype three ideas for the onboarding screen
+/fleet-workflows:prototype three ideas for the onboarding screen
 ```
 In about ten minutes you get 2 to 4 options side by side on one page in Prototypes, with Claude's pick outlined. Tap the one you like (or ask for another round); Claude builds your pick.
 
 **"Something is broken."**
 ```
-/fleet:triage the login button does nothing on iPhone
+/fleet-workflows:triage the login button does nothing on iPhone
 ```
 Claude reads the errors first, finds the cause, fixes it on a branch and checks the fix.
 
 **"I have a bunch of ideas."**
 ```
-/fleet:idea a weekly recap email, shared lists, and a better search
+/fleet-workflows:idea a weekly recap email, shared lists, and a better search
 ```
 Claude turns them into clear, researched GitHub issues ready to build.
 
 **"Keep building while I'm away."**
 ```
-/fleet:loop
+/fleet-workflows:loop
 ```
-Claude works through your backlog one task at a time: builds, checks, puts each one in your Inbox for review, and ships it when you say so. `/fleet:loop 2` runs two at once. Type **stop** to end it.
+Claude works through your backlog one task at a time: builds, checks, puts each one in your Inbox for review, and ships it when you say so. `/fleet-workflows:loop 2` runs two at once. Type **stop** to end it.
 
 - **Small slices, fast.** The first working piece of a task reaches you in about 15 minutes, and each lane checks in every 10 (the Loop tab flags a quiet lane or work that isn't pushed).
 - **On your phone or preview,** each build can show what it is (`Staging · branch · sha`) and the test steps for what's waiting on you, if your app reads them (`preview` in `.fleet/workflow.json`).
@@ -75,7 +87,7 @@ Claude works through your backlog one task at a time: builds, checks, puts each 
 
 **"Ship it."**
 ```
-/fleet:ship
+/fleet-workflows:ship
 ```
 Merges and deploys, only after your yes, then checks production. Apps and servers go out together, in order, with a check that the app points at production and a changelog entry for anything people can see.
 
@@ -83,12 +95,13 @@ Merges and deploys, only after your yes, then checks production. Apps and server
 
 | Command | What it does |
 | --- | --- |
-| `/fleet` | The front door: what's waiting on you and which workflow fits what you describe |
+| `/fleet` | The front door (fleet-workflows): what's waiting on you and which workflow fits what you describe |
+| `/fleet-sims:sim` | A quick look at an app on an iPhone, iPad or Apple TV simulator (fleet-sims) |
 | `/fleet:help` | This guide (`/fleet:help <question>` to ask about one thing) |
 | `/fleet:status` | Your Macs, what's waiting on you, live sessions |
 | `/fleet:find <words>` | Find a past session by what was said in it, and how to resume it |
-| `/fleet:verify` | Check that something actually works (after a release, it also signs in to production and looks around, read-only) |
-| `/fleet:review` | A fresh-eyes review of a branch or pull request, with fixes (`round` checks just the latest fixes against what you asked for) |
+| `/fleet-workflows:verify` | Check that something actually works (after a release, it also signs in to production and looks around, read-only) |
+| `/fleet-workflows:review` | A fresh-eyes review of a branch or pull request, with fixes (`round` checks just the latest fixes against what you asked for) |
 | `/fleet:login` | Sign this computer in |
 
 ## Good to know
@@ -99,7 +112,7 @@ Merges and deploys, only after your yes, then checks production. Apps and server
 - **Say "always" or "never" and it sticks:** Claude writes the rule into your repo with the date and your words, not just its memory.
 - **Nothing ships without your yes.** Claude asks in your Inbox or in chat before anything goes to production.
 - **On your phone?** The dashboard works there too: answer questions and pick options from anywhere.
-- **Updating Fleet:** in a terminal, run `claude plugin marketplace update osroc` and then `claude plugin update fleet@osroc`, then start a new session. What changed in each version: `CHANGELOG.md` in the plugin (or ask Claude "what changed in Fleet since 0.8.1?").
+- **Updating Fleet:** in a terminal, run `claude plugin marketplace update osroc` and then `claude plugin update fleet@osroc` (and `fleet-sims@osroc`, `fleet-workflows@osroc` if you use them), then start a new session. What changed in each version: `CHANGELOG.md` in the plugin (or ask Claude "what changed in Fleet since 0.8.1?").
 - **Test flows with a sign-in?** Save the test account on each Mac once (`fleet secrets set <owner/repo> <NAME>`); flows name it and the password never passes through Claude.
 - **No simulator build of your Expo app?** `fleet build-sim --profile preview` makes one on your Mac (a phone `.ipa` won't run on a simulator).
 - **Something looks off?** `/fleet:status` shows whether you're signed in and your Macs are online.

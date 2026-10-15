@@ -1,0 +1,10 @@
+{
+  "name": "fleet-workflows",
+  "displayName": "Fleet Workflows",
+  "version": "0.1.0",
+  "description": "Fleet's workflow skills: a perpetual build loop (/fleet-workflows:loop, with ios, web, api, cli and prototype-only modes and parallel lanes) and the workflows it conducts (idea, prototype, build, verify, review, ship, triage), backed by your Fleet's prototypes, Inbox and simulators. Needs the fleet plugin (its MCP). Turn it off in a repo with its own skills: \"enabledPlugins\": { \"fleet-workflows@osroc\": false } in .claude/settings.json.",
+  "author": { "name": "osroc-labs", "url": "https://fleet.osroc.io" },
+  "homepage": "https://fleet.osroc.io",
+  "repository": "https://github.com/osroc-labs/fleet-plugin",
+  "keywords": ["fleet", "workflows", "loop", "prototype", "review", "ship"]
+}

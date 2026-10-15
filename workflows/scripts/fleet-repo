@@ -1,0 +1,115 @@
+#!/bin/sh
+# What the Fleet workflow skills need to know about the repo in the current directory, as plain lines:
+# the saved settings (.fleet/workflow.json) if there are any, else what the repo suggests (scripts, app config,
+# deploy tooling). Read-only, local and fast: no network, nothing written. POSIX sh.
+#
+#   fleet-repo          the summary
+#   fleet-repo --short  just the repo, branches, saved settings and the repo's own skills
+# Always exits 0, so a skill's !`…` line never aborts the skill. Everything printed is redacted first (lib.sh).
+HERE=$(dirname "$0")
+. "$HERE/lib.sh" 2>/dev/null || redact() { cat; }
+
+summary() {
+root=$(git rev-parse --show-toplevel 2>/dev/null)
+if [ -z "$root" ]; then
+  echo "repo: none (not inside a git repo)"
+  return 0
+fi
+cd "$root" || return 0
+
+echo "repo: $root"
+origin=$(git remote get-url origin 2>/dev/null | sed -E 's#://[^/@]*@#://#')
+echo "origin: ${origin:-(none)}"
+main=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##')
+[ -n "$main" ] || for b in main master trunk; do git show-ref --verify --quiet "refs/remotes/origin/$b" && { main=$b; break; }; done
+echo "main branch: ${main:-(unknown)}"
+echo "current branch: $(git rev-parse --abbrev-ref HEAD 2>/dev/null)"
+dirty=$(git status --porcelain 2>/dev/null | wc -l | tr -d ' ')
+echo "uncommitted files: $dirty"
+command -v gh >/dev/null 2>&1 && echo "gh: installed" || echo "gh: not installed"
+
+# Saved settings win.
+if [ -f .fleet/workflow.json ]; then
+  echo "settings (.fleet/workflow.json):"
+  head -c 4000 .fleet/workflow.json
+  echo
+  # The step-to-skill map and the repo's rules, on their own lines so a long file never cuts them off.
+  if command -v node >/dev/null 2>&1; then
+    node -e 'try{const w=JSON.parse(require("fs").readFileSync(".fleet/workflow.json","utf8"));const k=w.skills&&typeof w.skills=="object"?Object.entries(w.skills):[];if(k.length)console.log("step skills: "+k.map(([s,v])=>s+" → "+v).join(" · "));const r=Array.isArray(w.rules)?w.rules:[];if(r.length){console.log("repo rules (follow every one):");r.forEach(x=>console.log("  - "+String(x)))}}catch(e){console.log("settings: .fleet/workflow.json is not valid JSON")}' 2>/dev/null
+  elif command -v jq >/dev/null 2>&1; then
+    jq -r '(.skills // {} | to_entries | if length > 0 then "step skills: " + (map("\(.key) → \(.value)") | join(" · ")) else empty end), (.rules // [] | if length > 0 then "repo rules (follow every one):", (.[] | "  - \(.)") else empty end)' .fleet/workflow.json 2>/dev/null || echo "settings: .fleet/workflow.json is not valid JSON"
+  fi
+else
+  echo "settings: none yet (.fleet/workflow.json): discover below, confirm once, then save"
+fi
+
+# The repo's own instructions and workflow skills, which come before Fleet's.
+for f in CLAUDE.md AGENTS.md CONTRIBUTING.md .claude/CLAUDE.md; do [ -f "$f" ] && echo "instructions: $f"; done
+own=""
+for d in .claude/skills/*/ .claude/commands/*.md; do
+  [ -e "$d" ] || continue
+  n=$(basename "$d" .md)
+  own="$own $n"
+done
+[ -n "$own" ] && echo "repo's own skills and commands:$own"
+[ "${SHORT:-}" = 1 ] && return 0
+
+# Package manager and scripts.
+pm=""
+[ -f pnpm-lock.yaml ] && pm=pnpm
+[ -z "$pm" ] && [ -f yarn.lock ] && pm=yarn
+[ -z "$pm" ] && { [ -f bun.lockb ] || [ -f bun.lock ]; } && pm=bun
+[ -z "$pm" ] && [ -f package-lock.json ] && pm=npm
+[ -z "$pm" ] && [ -f package.json ] && pm=npm
+if [ -n "$pm" ]; then
+  echo "package manager: $pm"
+  scripts=""
+  if command -v node >/dev/null 2>&1; then
+    scripts=$(node -e 'try{const s=require("./package.json").scripts||{};for(const[k,v]of Object.entries(s))console.log("  "+k+": "+String(v).slice(0,140))}catch(e){}' 2>/dev/null)
+  elif command -v jq >/dev/null 2>&1; then
+    scripts=$(jq -r '.scripts // {} | to_entries[] | "  \(.key): \(.value[0:140])"' package.json 2>/dev/null)
+  fi
+  if [ -n "$scripts" ]; then
+    echo "package.json scripts:"
+    printf '%s\n' "$scripts" | head -n 60
+  fi
+fi
+[ -f Makefile ] && echo "Makefile targets: $(grep -E '^[A-Za-z0-9_.-]+:' Makefile | cut -d: -f1 | grep -v '^\.' | head -n 25 | tr '\n' ' ')"
+[ -f justfile ] && echo "justfile: present"
+[ -f Cargo.toml ] && echo "rust: Cargo.toml (cargo test, cargo build)"
+[ -f go.mod ] && echo "go: go.mod (go test ./..., go build ./...)"
+{ [ -f pyproject.toml ] || [ -f setup.py ]; } && echo "python: $( [ -f pyproject.toml ] && echo pyproject.toml || echo setup.py)"
+[ -f Gemfile ] && echo "ruby: Gemfile"
+
+# Apple and mobile.
+if [ -f app.json ] || [ -f app.config.ts ] || [ -f app.config.js ]; then
+  echo "expo: app config present ($(ls app.json app.config.ts app.config.js 2>/dev/null | tr '\n' ' '))"
+  if [ -f app.json ]; then
+    for k in name slug scheme; do
+      v=$(sed -n "s/.*\"$k\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p" app.json | head -n 1)
+      [ -n "$v" ] && echo "  $k: $v"
+    done
+    b=$(sed -n 's/.*"bundleIdentifier"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' app.json | head -n 1)
+    [ -n "$b" ] && echo "  ios.bundleIdentifier: $b"
+  fi
+  [ -f package.json ] && grep -q '"expo-dev-client"' package.json && echo "  expo-dev-client: yes (a dev build, not Expo Go)"
+  [ -f eas.json ] && echo "  eas.json: present (profiles: $(grep -oE '"[A-Za-z0-9_-]+"[[:space:]]*:[[:space:]]*\{' eas.json | sed -E 's/"([^"]*)".*/\1/' | grep -vE '^(build|submit|cli|env|ios|android)$' | tr '\n' ' '))"
+fi
+[ -f package.json ] && grep -q '"react-native"' package.json && echo "react-native: yes"
+ws=$(ls -d ios/*.xcworkspace *.xcworkspace 2>/dev/null | grep -v 'project.xcworkspace' | head -n 1)
+proj=$(ls -d ios/*.xcodeproj *.xcodeproj 2>/dev/null | head -n 1)
+[ -n "$ws" ] && echo "xcode workspace: $ws"
+[ -n "$proj" ] && echo "xcode project: $proj"
+[ -z "$ws$proj" ] && [ -f Package.swift ] && echo "swift package: Package.swift"
+[ -d android ] && echo "android: android/ present"
+
+# Deploy tooling.
+for f in wrangler.toml wrangler.json wrangler.jsonc fly.toml vercel.json netlify.toml firebase.json render.yaml app.yaml Procfile Dockerfile; do
+  [ -f "$f" ] && echo "deploy config: $f"
+done
+ls .github/workflows/*.yml .github/workflows/*.yaml 2>/dev/null | head -n 10 | sed 's/^/ci workflow: /'
+}
+
+[ "${1:-}" = --short ] && SHORT=1
+summary 2>/dev/null | redact
+exit 0

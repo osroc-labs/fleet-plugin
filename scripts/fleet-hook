@@ -7,6 +7,10 @@
 # A session registers on its first hook event: a new one on its first prompt, one that was
 # already running when the plugin was installed on whatever event reaches us first (the sender
 # then backfills its earlier prompts from the transcript).
+#
+# Sessions off for this account (Settings › Features; the server's answer, cached by fleet-send): it stops here,
+# queueing nothing, and only starts a probe once an hour so turning it back on is seen. Below "full" it queues no
+# prompt or reply text (and at "presence" no commits or links); the sender and the server cut the rest.
 EVENT="${1:-}"
 HERE=$(dirname "$0")
 . "$HERE/lib.sh" 2>/dev/null || { cat >/dev/null; exit 0; }
@@ -14,6 +18,16 @@ HERE=$(dirname "$0")
 # No key: do nothing, silently.
 if [ -z "${FLEET_KEY:-}" ] && ! grep -q '"key"' "$CONFIG" 2>/dev/null; then
   cat >/dev/null
+  exit 0
+fi
+
+sessions_caps
+if [ "$SESS_ON" = off ]; then
+  cat >/dev/null
+  if [ "$SESS_AGE" -ge 3600 ] && mkdir -p "$WF" 2>/dev/null && [ -z "$(find "$WF/probe.at" -mmin -60 2>/dev/null)" ]; then
+    : >"$WF/probe.at"
+    nohup sh "$HERE/fleet-send" --probe </dev/null >/dev/null 2>&1 &
+  fi
   exit 0
 fi
 
@@ -113,18 +127,24 @@ UserPromptSubmit)
     [ -s "$Q" ] && spawn_sender
     exit 0
   fi
-  register "$(redact <"$P" | tr '\n' ' ' | json_text 80)"
+  if [ "$SESS_LEVEL" = full ]; then register "$(redact <"$P" | tr '\n' ' ' | json_text 80)"; else register ""; fi
   if [ -f "$ST.waiting" ]; then
     rm -f "$ST.waiting"
     printf 'Back at the helm: answered in the terminal.' | queue_log answer 1000 ""
   fi
-  queue_log note 8009 "Captain: " <"$P" # the prompt verbatim (redacted), up to 8000 bytes
+  if [ "$SESS_LEVEL" = full ]; then
+    queue_log note 8009 "Captain: " <"$P" # the prompt verbatim (redacted), up to 8000 bytes
+  else
+    enqueue '{"t":"act"}' # only that the session is working
+  fi
   rm -f "$P"
   spawn_sender
   ;;
 
 PostToolUse)
   if [ ! -f "$ST.opened" ]; then has_history && register "" || exit 0; fi
+  # Presence keeps no commits, PRs or links.
+  if [ "$SESS_LEVEL" = presence ]; then [ -s "$Q" ] && spawn_sender; exit 0; fi
   if [ "$TOOL" = "Bash" ]; then
     CMD=$(json_get "$IN" command tool_input | head -c 2000)
     case "$CMD" in *commit* | *push* | *"gh pr"* | *deploy* | *publish* | *eas*) ;; *) CMD="" ;; esac
@@ -167,7 +187,8 @@ Stop | SubagentStop)
   # Check-ins, captured passively: the sender posts the first 280 characters of Claude's last
   # message as the voyage's state (a subagent's as a crew line). Nothing is asked of Claude.
   if [ ! -f "$ST.opened" ]; then has_history && register "" || exit 0; fi
-  raw=$(raw_last_message)
+  raw=""
+  [ "$SESS_LEVEL" = full ] && raw=$(raw_last_message)
   tpe=$(json_get "$IN" transcript_path | json_text 0)
   if [ "$EVENT" = Stop ]; then
     # Claude is done: a pending "waiting on you" is over (the turn's event clears it on the server too).
@@ -186,7 +207,7 @@ Notification)
   if [ ! -f "$ST.opened" ]; then has_history && register "" || exit 0; fi
   [ -f "$ST.waiting" ] && exit 0
   msg=$(json_get "$IN" message | tr '\n\r\t' '   ' | sed -E 's/([.!?])[[:space:]].*$/\1/; s/[.!?]+$//')
-  [ -n "$msg" ] || msg="Claude is waiting for your input"
+  [ -n "$msg" ] && [ "$SESS_LEVEL" != presence ] || msg="Claude is waiting for your input"
   printf 'Waiting on you: %s' "$msg" | queue_log question 200 ""
   : >"$ST.waiting"
   spawn_sender

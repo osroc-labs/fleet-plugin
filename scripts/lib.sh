@@ -86,6 +86,19 @@ replies_off() {
   return 1
 }
 
+# What the server last said about this account's Sessions (GET /api/wayfind, which fleet-send asks hourly and keeps in
+# ~/.fleet/wayfind/features as "<time> <server> on|off <level>"). Sets SESS_ON (on or off), SESS_LEVEL (presence,
+# activity or full) and SESS_AGE (seconds since it asked; a large number when it never has). Until it has asked, and
+# from a server that predates features, it's on and full: the server keeps only what its level allows anyway.
+sessions_caps() {
+  SESS_ON=on SESS_LEVEL=full SESS_AGE=999999
+  read -r _st _ss _so _sl <"$WF/features" 2>/dev/null || return 0
+  [ "$_ss" = "$(fleet_server)" ] || return 0
+  case "$_so" in on | off) SESS_ON=$_so ;; esac
+  case "$_sl" in presence | activity | full) SESS_LEVEL=$_sl ;; esac
+  case "$_st" in '' | *[!0-9]*) ;; *) SESS_AGE=$(($(date +%s) - _st)) ;; esac
+}
+
 # The API key: FLEET_KEY, else "key" in ~/.fleet/config.json.
 fleet_key() {
   if [ -n "${FLEET_KEY:-}" ]; then printf '%s' "$FLEET_KEY"; return 0; fi

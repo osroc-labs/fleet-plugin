@@ -1,0 +1,10 @@
+{
+  "name": "fleet-sims",
+  "displayName": "Fleet Simulators",
+  "version": "0.1.0",
+  "description": "Lease a real iPhone, iPad or Apple TV simulator from your Fleet's Macs to see, test, screenshot or tap an app: the berths skill and /fleet-sims:sim. Needs the fleet plugin (its MCP) and Simulators on in Fleet (Settings › Features).",
+  "author": { "name": "osroc-labs", "url": "https://fleet.osroc.io" },
+  "homepage": "https://fleet.osroc.io",
+  "repository": "https://github.com/osroc-labs/fleet-plugin",
+  "keywords": ["fleet", "ios", "simulator", "berths"]
+}
