@@ -1,11 +1,11 @@
 ---
 name: berths
-description: Lease a real iPhone, iPad or Apple TV simulator from your Fleet to see, test, screenshot or tap an iOS/tvOS app, Expo or React Native build, or a web page in Safari, instead of guessing.
+description: Lease a real iPhone, iPad, Apple TV simulator or Android emulator from your Fleet to see, test, screenshot or tap an iOS, tvOS or Android app, Expo or React Native build, or a web page, instead of guessing.
 ---
 
-# Berths: an Apple simulator on demand
+# Berths: a simulator or emulator on demand
 
-A berth is a simulator slot on a Mac in the user's Fleet. Everything goes through the fleet MCP.
+A berth is a simulator (or Android emulator) slot on a Mac in the user's Fleet. Everything goes through the fleet MCP.
 
 1. **See what's free:** `fleet_status`. Berths that are `ashore` are free; `adrift` means that Mac is offline.
 2. **Have a voyage:** this session's is the first line of `~/.fleet/wayfind/sessions/${CLAUDE_SESSION_ID}` (read it); without one, `voyage_start` with `repo` from `git remote get-url origin`.
@@ -20,6 +20,13 @@ A berth is a simulator slot on a Mac in the user's Fleet. Everything goes throug
 6. **Look, then act:** `screenshot` and actually look at it. `describe_ui` gives the elements and their ids; `tap` by id, `type_text`, `swipe`, `press_button`. Screenshot again after each step that changes the screen.
 7. **Maestro flows:** `run_flow` with the flow (or a zip of the flows folder). Credentials go by **name** only: `secrets: ["STAGING_SMOKE_EMAIL", "STAGING_SMOKE_PASSWORD"]` (the names in `.fleet/workflow.json` `verify.smoke.envVars`) are filled in as `${NAME}` on the runner Mac and never come back to you. Never read a password into the conversation to pass as `env`. A missing name fails with the command the owner runs once on that Mac: `fleet secrets set <owner/repo> <NAME>` (or `fleet secrets import <owner/repo> <path to the project's .env> <NAME>...`). The other way: lease `sticky`, sign in once by hand, and run flows that skip sign-in. The app must be installed first; `app_id` becomes `${APP_ID}`, and a flow with no config section gets `appId: ${APP_ID}`. A flow given as text runs from the zip's root (or `flow_path`'s folder), so its `runFlow` paths resolve. `env` values become `${NAME}` and stay out of the log. Maestro stops at `timeout_seconds` (default 600, max 1800) and reports status `timeout`. A Mac needs Maestro and Java; the error says how to install them.
 8. **Release:** `release` when you're done, every time, even after a failure. If you started a voyage in step 2, `voyage_close` it too.
+
+**Android berths** (Macs whose owner added them; runner 0.9.0+): `target` `android` (a Pixel 9, 1080×2424), `android:small` (1080×1920: Play's screenshot size) or `androidtablet` (Pixel Tablet), Android 16 (API 36) with Google Play and 16 KB pages. The same tools, with these differences:
+- `install_app`: an `.apk` (`url`, or `upload_url` with `ext: "apk"` then `blob_key`); an `.aab` can't install, so build an APK (an EAS profile with `"android": { "buildType": "apk" }`, or `./gradlew assembleDebug`). `bundle_id` is the package name everywhere (`launch_app`, `app_logs`, reinstall from the Mac's cache).
+- `tap`/`swipe` coordinates and `describe_ui` frames are **pixels**. `press_button`: `back`, `home`, `recents`, `lock`, `volume_up`, `volume_down`. `type_text` takes plain ASCII.
+- `device_settings` adds `font_scale`, `animations`, `talkback`, `dont_keep_activities`, `orientation`, `network: "off"` (airplane mode) and `demo_mode` (12:00, full battery and signal: store-ready screenshots).
+- `app_logs` is logcat for the package, with crashes from the crash buffer. `record_start` stops by itself at 3 minutes. No `push_notification`.
+- `run_flow` runs Maestro flows on Android too. Metro works the same (`lease` `metro` and `scheme`, then the `fleet expose` command): the dev client opens the tunnel URL.
 
 Rules:
 - Always release the lease. A held berth blocks everyone else.

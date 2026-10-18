@@ -15,8 +15,8 @@
     {
       "name": "fleet-sims",
       "source": "./sims",
-      "description": "Lease iPhone, iPad and Apple TV simulators from your Fleet's Macs: the berths skill and /fleet-sims:sim. Needs fleet.",
-      "version": "0.1.0"
+      "description": "Lease iPhone, iPad and Apple TV simulators and Android emulators from your Fleet's Macs: the berths skill and /fleet-sims:sim. Needs fleet.",
+      "version": "0.2.0"
     },
     {
       "name": "fleet-workflows",
