@@ -130,7 +130,7 @@ save_key() {
     case "$SERVER" in *[!A-Za-z0-9:/._-]*) ;; *) config_set "$CONFIG" server "$SERVER" || { echo "Couldn't read $CONFIG as JSON; left it alone. Fix it or move it aside, then run /fleet:login again."; return 1; } ;; esac
   fi
   config_set "$CONFIG" key "$1" || { echo "Couldn't read $CONFIG as JSON; left it alone. Fix it or move it aside, then run /fleet:login again."; return 1; }
-  echo "Signed in. New sessions will appear on your dashboard."
+  echo "Signed in."
   echo "Fleet's tools (MCP) connect in new sessions; in this one, run /mcp and reconnect fleet."
   if [ -n "${FLEET_KEY:-}" ] && [ "$FLEET_KEY" != "$1" ]; then
     echo "Note: FLEET_KEY in your environment overrides the saved key. Remove its export line from your shell's rc file."
