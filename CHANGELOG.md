@@ -2,6 +2,9 @@
 
 Releases of the `fleet` plugin, newest first, with the osroc-labs/fleet issues they close. Update with `claude plugin marketplace update osroc && claude plugin update fleet@osroc`, then start a new session. Server-side changes (new MCP tools, dashboard) go live on fleet.osroc.io without a plugin update; a new session picks up new tools.
 
+## 1.2.0
+- **Builds on Fleet's Macs:** the berths skill sends native changes to `fleet build --profile … --lease <id>` (CLI and runner 0.11.0), which builds the simulator app or APK from the repo's source on the Mac holding the berth, reports its fingerprint against each replica and installs it; `build_app` + `op_result` without the CLI. A fleet admin turns on Allow builds per Mac first. `fleet build-sim` (this machine) is now the last resort.
+
 ## 1.1.0
 - **Builds:** the berths skill installs the project's own builds first: `install_app { profile }` (or `build_id`) picks the newest EAS build of that profile Fleet holds and names it; `builds` lists them; `register_build` after your own `eas build`; `bundle_id` is the Mac's cached copy first. Builds reach Fleet through the EAS webhook (project page › Builds › Connect EAS) or `fleet builds sync` (CLI 0.10.0+).
 - **Replicas:** after `eas update`, `replica_check { project, expect_group }` says whether each installed runtime's twin runs the update (OK, BEHIND, MISMATCH, CRASHED, ERROR); `fleet replicas check --expect-from` for scripts (exit 0 / 3 / 1; CLI 0.10.1).

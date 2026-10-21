@@ -1,7 +1,7 @@
 {
   "name": "fleet",
   "displayName": "Fleet",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Simulator and emulator berths for agents: lease a real iPhone, iPad, Apple TV simulator or Android emulator on your own Macs to see, test, screenshot or tap an iOS, tvOS or Android app, an Expo or React Native build, or a web page, with the Expo tooling around it (simulator builds, over-the-air updates, a dev client through a tunnel). The berths skill, the Fleet MCP, /fleet:login, /fleet:status and /fleet:sim. No binary: POSIX sh helpers.",
   "author": { "name": "osroc-labs", "url": "https://fleet.osroc.io" },
   "homepage": "https://fleet.osroc.io",
