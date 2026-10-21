@@ -112,9 +112,13 @@ wait_for_key() {
       return 1
       ;;
     *)
-      # Unreachable, a hiccup or a server that doesn't know device login: keep trying until the code runs out,
-      # except a server that has no such endpoint at all.
-      case "$HTTP" in 401 | 404 | 405) rm -f "$PENDING"; echo "Fleet login isn't available yet; use setup.sh. $SETUP_HINT"; return 1 ;; esac
+      # Unreachable or a server hiccup (000, 5xx): keep trying until the code runs out. A server that has no such
+      # endpoint (401, 404, 405) and any other answer we don't understand (a 200 with no key, another 4xx) end it.
+      case "$HTTP" in
+      000 | 5??) ;;
+      401 | 404 | 405) rm -f "$PENDING"; echo "Fleet login isn't available yet; use setup.sh. $SETUP_HINT"; return 1 ;;
+      *) rm -f "$PENDING"; echo "Fleet answered unexpectedly (HTTP $HTTP); run /fleet:login again."; return 1 ;;
+      esac
       ;;
     esac
   done

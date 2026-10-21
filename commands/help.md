@@ -27,7 +27,7 @@ You never have to open the dashboard to use Fleet, but it's where you watch a ru
 
 1. Sign in at https://fleet.osroc.io/app (or open the invite link a friend sent).
 2. In Claude Code: `/fleet:login`, then approve the link it opens.
-3. Add a Mac at https://fleet.osroc.io/app/add (it installs the runner; Xcode's simulators are enough to start).
+3. Add a Mac at https://fleet.osroc.io/app/devices/add (it installs the runner; Xcode's simulators are enough to start).
 
 Then ask Claude to look at your app, or run `/fleet:sim`.
 

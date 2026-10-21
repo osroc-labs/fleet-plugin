@@ -2,7 +2,7 @@
 description: Quick look at an app or page on a Fleet iPhone, iPad, Apple TV or Android berth, screenshot it, then release it.
 argument-hint: "[iphone|ipad|appletv|android|androidtablet] [url | bundle id | path/to/App.app | app.apk]"
 disable-model-invocation: true
-allowed-tools: Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-login" check), Bash(git remote get-url origin)
+allowed-tools: Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/fleet-login" check), Bash(git remote get-url origin), Bash(ditto *), Bash(curl -sS -T *)
 ---
 
 A quick look on a simulator: "$ARGUMENTS"
