@@ -2,6 +2,9 @@
 
 Releases of the `fleet` plugin, newest first, with the osroc-labs/fleet issues they close. Update with `claude plugin marketplace update osroc && claude plugin update fleet@osroc`, then start a new session. Server-side changes (new MCP tools, dashboard) go live on fleet.osroc.io without a plugin update; a new session picks up new tools.
 
+## 1.2.1
+- The berths skill says where the CLI lives (`~/.fleet/bin/fleet`) and to use that path when `fleet` isn't on PATH, instead of hand-rolling a tunnel (osroc-labs/fleet#41).
+
 ## 1.2.0
 - **Builds on Fleet's Macs:** the berths skill sends native changes to `fleet build --profile … --lease <id>` (CLI and runner 0.11.0), which builds the simulator app or APK from the repo's source on the Mac holding the berth, reports its fingerprint against each replica and installs it; `build_app` + `op_result` without the CLI. A fleet admin turns on Allow builds per Mac first. `fleet build-sim` (this machine) is now the last resort.
 
