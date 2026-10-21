@@ -9,20 +9,8 @@
     {
       "name": "fleet",
       "source": "./",
-      "description": "Fleet for Claude Code: a quiet log of every session, your Fleet's MCP (prototypes, simulators, the build loop; only the features you turned on in Fleet) and /fleet:login, /fleet:status, /fleet:find.",
-      "version": "0.8.15"
-    },
-    {
-      "name": "fleet-sims",
-      "source": "./sims",
-      "description": "Lease iPhone, iPad and Apple TV simulators and Android emulators from your Fleet's Macs: the berths skill and /fleet-sims:sim. Needs fleet.",
-      "version": "0.2.0"
-    },
-    {
-      "name": "fleet-workflows",
-      "source": "./workflows",
-      "description": "Fleet's workflow skills: the perpetual build loop (/fleet-workflows:loop) and idea, prototype, build, verify, review, ship and triage. Needs fleet. Turn it off per repo with enabledPlugins.",
-      "version": "0.1.0"
+      "description": "Fleet for Claude Code: lease iPhone, iPad and Apple TV simulators and Android emulators on your own Macs to see, test, screenshot and tap an app, with the Expo tooling around them. The berths skill, the Fleet MCP, /fleet:login, /fleet:status and /fleet:sim.",
+      "version": "1.0.0"
     }
   ]
 }

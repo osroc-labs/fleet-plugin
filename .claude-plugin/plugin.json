@@ -1,10 +1,10 @@
 {
   "name": "fleet",
   "displayName": "Fleet",
-  "version": "0.8.15",
-  "description": "Fleet for Claude Code: a quiet log of every session (watch, search and resume them in Fleet), your Fleet's MCP (prototypes to pick from, simulators, the build loop's lanes; only the features you turned on), and /fleet:login, /fleet:status, /fleet:find. No binary: POSIX sh hooks. Simulators' skill is fleet-sims; the workflow skills are fleet-workflows.",
+  "version": "1.0.0",
+  "description": "Simulator and emulator berths for agents: lease a real iPhone, iPad, Apple TV simulator or Android emulator on your own Macs to see, test, screenshot or tap an iOS, tvOS or Android app, an Expo or React Native build, or a web page, with the Expo tooling around it (simulator builds, over-the-air updates, a dev client through a tunnel). The berths skill, the Fleet MCP, /fleet:login, /fleet:status and /fleet:sim. No binary: POSIX sh helpers.",
   "author": { "name": "osroc-labs", "url": "https://fleet.osroc.io" },
   "homepage": "https://fleet.osroc.io",
   "repository": "https://github.com/osroc-labs/fleet-plugin",
-  "keywords": ["fleet", "session log", "prototype", "simulator", "mcp"]
+  "keywords": ["fleet", "ios", "android", "simulator", "emulator", "expo", "react native", "berths", "mcp"]
 }
