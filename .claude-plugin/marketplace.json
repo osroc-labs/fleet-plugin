@@ -10,7 +10,7 @@
       "name": "fleet",
       "source": "./",
       "description": "Fleet for Claude Code: lease iPhone, iPad and Apple TV simulators and Android emulators on your own Macs to see, test, screenshot and tap an app, with the Expo tooling around them. The berths skill, the Fleet MCP, /fleet:login, /fleet:status and /fleet:sim.",
-      "version": "1.0.0"
+      "version": "1.1.0"
     }
   ]
 }
