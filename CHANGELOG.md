@@ -2,6 +2,9 @@
 
 Releases of the `fleet` plugin, newest first, with the osroc-labs/fleet issues they close. Update with `claude plugin marketplace update osroc && claude plugin update fleet@osroc`, then start a new session. Server-side changes (new MCP tools, dashboard) go live on fleet.osroc.io without a plugin update; a new session picks up new tools.
 
+## 1.2.2
+- The berths skill and help give the new lease rule: Fleet releases a lease after about 10 minutes with no step (the Mac's idle limit) and ends it at 3 hours at most. While waiting, any cheap op such as `screenshot` keeps it. Don't pass a long `ttl_seconds`. The server change needs no plugin update; this only updates the wording.
+
 ## 1.2.1
 - The berths skill says where the CLI lives (`~/.fleet/bin/fleet`) and to use that path when `fleet` isn't on PATH, instead of hand-rolling a tunnel (osroc-labs/fleet#41).
 

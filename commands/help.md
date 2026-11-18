@@ -66,7 +66,7 @@ The `berths` skill (`fleet:berths`) is the how-to Claude follows whenever it nee
 
 ## Good to know
 
-- **Every lease is released.** A held berth blocks everyone else, so Claude releases it even after a failure, and a lease expires on its own after 30 minutes without activity.
+- **Every lease is released.** A held berth blocks everyone else, so Claude releases it even after a failure, and Fleet releases a lease on its own after about 10 minutes with no step (3 hours at most). While waiting, any cheap step such as a screenshot keeps it.
 - **Sticky berths** keep a project's apps and sign-ins between leases (`sticky: true`); erase one with `reset_berth`, or unpin it to give it back.
 - **Simulator builds only.** A store or ad hoc `.ipa` is for phones; use an EAS profile with `"ios": { "simulator": true }`, or `fleet build-sim`. On Android, an `.apk` (an `.aab` can't install).
 - **On your phone?** The dashboard works there too: watch a run and see what needs you from anywhere.
