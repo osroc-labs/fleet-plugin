@@ -105,7 +105,7 @@ Then `rm -rf ~/.fleet/wayfind`: the old session log's local queue, which nothing
 - **`/fleet-sims:sim`, `/fleet-workflows:loop` or `/fleet:find` not found?** They're gone. The quick look is `/fleet:sim`; the loop, the workflow skills and the session log were removed (Fleet is simulators now). Uninstall the old plugins as above.
 - **`/fleet:login` says it isn't available yet?** Your Fleet server predates device login: use the by-hand setup above.
 - **No browser on this machine (SSH)?** `/fleet:login` prints the link and code; open the link on any device where you're signed in.
-- **No free berth?** `/fleet:status` shows each Mac's berths and who holds them. A lease expires 30 minutes after its last step; a Mac shown offline needs its runner started (or the Mac woken).
+- **No free berth?** `/fleet:status` shows each Mac's berths and who holds them. Fleet releases a lease about 10 minutes after its last step (3 hours at most); a Mac shown offline needs its runner started (or the Mac woken).
 - **`install_app` says "This is a device build"?** Berths run simulator builds only; an `.ipa` is for phones. Use an EAS profile with `"ios": { "simulator": true }`, or `fleet build-sim --profile preview --lease <id>` in an Expo project. On Android, build an `.apk` (an `.aab` can't install).
 - **`run_flow` says a secret isn't set?** On the Mac it names, run `fleet secrets set <owner/repo> <NAME>` (it asks for the value, hidden), or `fleet secrets import <owner/repo> <path to the project's env file> <NAME>...`. `fleet secrets list <owner/repo>` shows the names saved. Older runners need `fleet runner update` first.
 - **A tool says the runner is out of date?** Update it from the Mac's page on the dashboard, or run `fleet runner update` on that Mac.
